@@ -1,13 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Jacob's Portfolio</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jacob | About Me</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Meow+Script&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+  <script src="script.js" defer></script>
+
 </head>
 <body>
-  <h1>Welcome to Jacob's Portfolio</h1>
-  <p style="font-weight: bold;">About me:</p>
-  <p>I am a computer science and mathematics of computation major at UCLA.</p>   
+  <div class="container">
+    <header>
+      <h1 class="page-title">Jacob Goodman</h1>
+      <h2>Computer Science Student & Aspiring Software Engineer</h2>
+    </header>
+
+    <section id="aboutme">
+      <h3>About Me</h3>
+      <p>
+        I'm a computer science and mathematics of computation student at UCLA with interests in machine learning, web development, database engineering and backend systems. I enjoy building projects and solving real-world problems with code. Currently seeking software engineering internships and collaborative opportunities.
+      </p>
+    </section>
+
+    <section id="skills">
+      <h3>Skills</h3>
+      <p>
+        <strong>Languages:</strong> C#, C/C++, SQL, JavaScript, HTML/CSS, Python, Visual Basic, Swift<br>
+        <strong>Frameworks & Libraries:</strong> .NET, React, Django, Node.js, PyTorch, TensorFlow, Scikit-learn, Pandas, SwiftUI<br>
+        <strong>Development Tools:</strong> Azure DevOps, Visual Studio/VS Code, XCode, Git/GitHub, Docker, Swagger, JupyterLab<br>
+        <strong>Methodologies:</strong> Agile, Scrum, CI/CD
+      </p>
+    </section>
+
+    <section id="experience">
+      <h3>Experience</h3>
+
+      <h4>Software Development Intern – Terracon</h4>
+      <em>June 2024 – September 2024 | Olathe, KS</em>
+      <p>
+        At Terracon, I developed a console application that integrates SQL Server logging tables with the Elastic logging platform, significantly improving the efficiency of search operations. I also transitioned a major internal desktop app from using Oracle SQL to SQL Server using PL/SQL, T-SQL, and Visual Basic .NET, improving interaction speed and preparing the system for future cloud migration. I conducted performance testing and validation of database updates and created clear documentation to help the team onboard and support the new setup.
+      </p>
+
+      <div>
+        <h4>SEO Content Writer – TicketSmarter</h4>
+        <p><em>May 2020 - May 2021 | Overland Park, KS</em></p>
+        <p>
+          I worked on SEO (Search Engine Optimization) strategy and content writing for Ticketsmarter.com, helping the site achieve top 10 Google rankings for event and venue keywords. Using SEOToolSet, I optimized content structures across pages and contributed to sustained growth in search visibility.
+        </p>
+      </div>
+    </section>
+
+    <section id="projects">
+      <h3>Projects</h3>
+      <p>
+        <strong>PinguType:</strong> A full-stack typing speed test app with a leaderboard and user accounts, built with the MERN stack.<br>
+        <strong>EchoScribe:</strong> An iOS app that classifies ambient sounds in real time using Apple’s SoundAnalysis framework and YAMNet.<br>
+        <strong>Fantasy Baseball Predictor:</strong> A web app using Python ML models to forecast fantasy baseball performance, providing users with insights to optimize their teams.
+      </p>
+    </section>
+
+    <section id="whoami">
+      <h3>Who Am I?</h3>
+      <img src="profile.jpg" alt="Profile picture of Jacob" width="200" />
+    </section>
+
+    <section id="interests">
+        <h3>Interests</h3>
+        <ul class="outer-list">
+          <li>Active hobbies
+            <ul class="inner-list">
+              <li>Golf</li>
+              <li>Rock climbing</li>
+            </ul>
+          </li>
+          <li>Digital hobbies
+            <ul class="inner-list">
+              <li>Video games</li>
+              <li>Building personal software</li>
+            </ul>
+          </li>
+        </ul>
+      </section>
+      
+
+    <section>
+      <h3>Contact</h3>
+      <p>Email: <a href="mailto:jsgoodman64@gmail.com">jsgoodman64@gmail.com</a></p>
+      <p>Phone: (913) 221-5340</p>
+      <p>
+        <a href="https://github.com/Goody64" target="_blank">GitHub</a> |
+        <a href="https://linkedin.com/in/jacob-s-goodman" target="_blank">LinkedIn</a>
+      </p>
+      
+    </section>
+  </div>
+  <button class="toggle-button" id="toggleMode">Toggle Mode</button>
 </body>
 </html>

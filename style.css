@@ -1,8 +1,135 @@
+:root {
+    --bg-color: #f5f5f5;
+    --bg-color2: #ffffff;
+    --title-color: #D30000;
+    --title-shadow: #19191ade;
+    --text-color: #201c1c;
+    --accent-color: #D30000;
+    --visited-link: blue;
+    --inner-list-marker: '➤';
+  }
+  
+  .dark-mode {
+    --bg-color: #000000;
+    --bg-color2: #111111;
+    --title-color: #a31cfd;
+    --title-shadow: #ebd5d5;
+    --text-color: #e0e0e0;
+    --accent-color: #a31cfd;
+    --visited-link: rgb(97, 208, 245);
+    --inner-list-marker: '▹';
+  }
+
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f2f2f2;
-    color: #333;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+  }
+  
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 2rem;
+    background-color: var(--bg-color2);;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+  }
+  
+  header {
+    color: var(--text-color);
     text-align: center;
-    margin-top: 100px;
+    margin-bottom: 2rem;
+  }
+  
+  h1 {
+    font-size: 2.5rem;
+    margin: 0;
+  }
+  
+  .page-title {
+    font-family: 'Meow Script';
+    font-size: 5rem;
+    font-weight: 600;
+    color: var(--title-color); /* #005fa3; */
+    text-align: center;
+    text-shadow: 2px 2px 4px var(--title-shadow);
+    margin-top: 2rem;
+  }  
+
+  h1, .page-title {
+    font-size: clamp(2rem, 5vw, 5rem);
+  }
+  
+  h2 {
+    font-weight: 400;
+    color: var(--title-shadow);
+  }
+  
+  section {
+    margin-bottom: 2rem;
+  }
+  
+  h3 {
+    font-family: 'Poppins', sans-serif;
+    border-bottom: 2px solid #ddd;
+    padding-bottom: 0.3rem;
+    margin-bottom: 1rem;
+  }
+  
+  h4 {
+    margin: 0.5rem 0 0.2rem;
+  }
+  
+  img {
+    border-radius: 10px;
+    margin-top: 1rem;
+  }
+  
+  .inner-list li::marker {
+    content: var(--inner-list-marker);
+    color: var(--accent-color);
+  }  
+
+  a {
+    color: var(--accent-color);
+    text-decoration: none;
+  }
+  
+  a:hover {
+    text-decoration: underline;
+  }
+
+  a:visited {
+    color: var(--visited-link); /* purple-ish or anything different from --accent-color */
+    font-style: italic;
+  }
+
+  .toggle-button {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    padding: 0.5rem 1rem;
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  @media (max-width: 768px) {
+    .container {
+      padding: 1rem;
+      max-width: 95%;
+    }
+  
+    h1 {
+      font-size: 2rem;
+    }
+  
+    h2 {
+      font-size: 1.2rem;
+    }
   }
   
