@@ -45,9 +45,7 @@ button.addEventListener('click', () => {
 
 let scrollLockTop = null;
 
-
 const iframe = document.querySelector('#pingutype-iframe');
-
 // Prevent auto-scrolling when using iFrame
 iframe.addEventListener('mouseenter', () => {
 scrollLockTop = window.scrollY;

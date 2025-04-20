@@ -5,23 +5,23 @@ CHOICES
  which one you chose using the letter provided in the spec. Separate the letters with a comma
  In some cases you will also need to tell us what you did)
 -------
-9a.
-9b.
-12.
-18.
-19.
+9a. Used text-shadow on the title (my name) at the top of the page to give it depth and make it pop more.
+9b. Used the clamp() function for responsive typography on the <h1> and .page-title elements to ensure the font size scales smoothly across different viewport widths.
+12. a, used a linear gradient oriented at 135 degrees for the main background going from white to red or black to purple depending on the theme, b, used box-shadow for the middle strip containing the content and all of the cards, c, images and cards enlarge when hovered over, d, used a repeating conic gradient for image border with the title color and black. 
+18. b, used ::after in order to make a line to go after the page title that matches the length and style of the title. 
+19. This is a duplicate.
 
 JAVASCRIPT
 (Please tells us what the JavaScript does e.g. "click on the green button and it does the following...")
 ----------
-
+The JavaScript is for my 3 buttons, the one in the top right is to change from light to dark mode (or vice versa), the "Show Project" button expands the box for the PinguType project revealing an iFrame containing PinguType so users can see the project firsthand, and the "Submit" button is to submit the form. 
 
 
 
 NOTES TO STAFF
 (If there is anything you need to tell us, please use the section below)
 ---------------
-
+The links in the footer did not change to :visited in Google Chrome when they had target="_blank" in them but they work now that I removed that. 
 
 
 
