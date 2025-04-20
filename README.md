@@ -4,7 +4,6 @@ This is my personal website. It serves as a simple, responsive portfolio built w
 
 ## Features
 
-- Responsive typography using `clamp()` for smooth scaling across devices
 - Dark mode toggle with CSS variables
 - Project grid with interactive expansion and embedded previews
 - Clean, semantic HTML and custom styles without any frameworks
