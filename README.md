@@ -14,7 +14,7 @@ This is my personal website. It serves as a simple, responsive portfolio built w
 Clone the repo and open `index.html` in your browser.
 
    ```bash
-   git clone https://github.com/your-username/your-repo-name.git
+   git clone https://github.com/Goody64/personal-website.git
    ```
 
 ## Contact
