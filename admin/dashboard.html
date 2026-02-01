@@ -86,6 +86,10 @@
         </a>
         
         <p class="sidebar-text text-xs text-slate-500 uppercase tracking-wider mt-6 mb-2 px-3">Life Tracking</p>
+        <a href="#lifelog" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="lifelog">
+          <i class="fas fa-stream w-5 text-center"></i>
+          <span class="sidebar-text">Life Log</span>
+        </a>
         <a href="#finance" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="finance">
           <i class="fas fa-wallet w-5 text-center"></i>
           <span class="sidebar-text">Finance</span>
@@ -344,33 +348,105 @@
           </div>
         </section>
 
-        <!-- Calendar Section -->
+        <!-- Calendar Section - Life Timeline -->
         <section id="calendar" class="content-section hidden">
           <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
-            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Calendar</h1>
+            <div>
+              <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Life Timeline</h1>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Everything that happened, day by day</p>
+            </div>
             <button id="addEventBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
               <i class="fas fa-plus"></i>
-              <span>Add Event</span>
+              <span>Log Activity</span>
             </button>
           </div>
-          <div class="grid lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+          <div class="grid lg:grid-cols-5 gap-6">
+            <!-- Calendar -->
+            <div class="lg:col-span-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
               <div class="flex items-center justify-between mb-6">
-                <button id="prevMonth" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                <button id="prevMonth" class="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
                   <i class="fas fa-chevron-left text-slate-600 dark:text-slate-300"></i>
                 </button>
-                <h3 class="text-lg font-semibold text-slate-900 dark:text-white" id="currentMonth">January 2026</h3>
-                <button id="nextMonth" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white" id="currentMonth">January 2026</h3>
+                <button id="nextMonth" class="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
                   <i class="fas fa-chevron-right text-slate-600 dark:text-slate-300"></i>
                 </button>
               </div>
-              <div id="calendarGrid" class="grid grid-cols-7 gap-1"></div>
+              <div id="calendarGrid" class="grid grid-cols-7 gap-2"></div>
             </div>
-            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-              <h3 class="font-semibold text-slate-900 dark:text-white mb-4">Upcoming Events</h3>
-              <div id="eventsContainer" class="text-center py-8 text-slate-400">
-                <i class="fas fa-calendar-day text-3xl mb-2 opacity-50"></i>
-                <p class="text-sm">No upcoming events</p>
+            <!-- Day Detail Panel -->
+            <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+              <div id="dayDetail">
+                <h3 class="font-semibold text-slate-900 dark:text-white mb-4">Select a Day</h3>
+                <p class="text-center py-8 text-slate-400 text-sm">Click on a day in the calendar to see all activities</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Life Log Section -->
+        <section id="lifelog" class="content-section hidden">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Life Log</h1>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Track everything - TV shows, activities, purchases, health, and more</p>
+            </div>
+            <button id="addLifeLogBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
+              <i class="fas fa-plus"></i>
+              <span>Log Activity</span>
+            </button>
+          </div>
+          
+          <!-- Quick Add Buttons -->
+          <div class="flex flex-wrap gap-2 mb-6">
+            <button onclick="openLifeLogModal('tv')" class="px-3 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-sm font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors">
+              <i class="fas fa-tv mr-2"></i>TV Show
+            </button>
+            <button onclick="openLifeLogModal('movie')" class="px-3 py-2 bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-lg text-sm font-medium hover:bg-pink-200 dark:hover:bg-pink-900/50 transition-colors">
+              <i class="fas fa-film mr-2"></i>Movie
+            </button>
+            <button onclick="openLifeLogModal('sport')" class="px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors">
+              <i class="fas fa-running mr-2"></i>Activity
+            </button>
+            <button onclick="openLifeLogModal('golf')" class="px-3 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg text-sm font-medium hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors">
+              <i class="fas fa-golf-ball mr-2"></i>Golf
+            </button>
+            <button onclick="openLifeLogModal('climbing')" class="px-3 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg text-sm font-medium hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors">
+              <i class="fas fa-mountain mr-2"></i>Climbing
+            </button>
+            <button onclick="openLifeLogModal('purchase')" class="px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg text-sm font-medium hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors">
+              <i class="fas fa-shopping-bag mr-2"></i>Purchase
+            </button>
+            <button onclick="openLifeLogModal('health')" class="px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
+              <i class="fas fa-heartbeat mr-2"></i>Health
+            </button>
+            <button onclick="openLifeLogModal('workout')" class="px-3 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg text-sm font-medium hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors">
+              <i class="fas fa-dumbbell mr-2"></i>Workout
+            </button>
+            <button onclick="openLifeLogModal('meal')" class="px-3 py-2 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-lg text-sm font-medium hover:bg-teal-200 dark:hover:bg-teal-900/50 transition-colors">
+              <i class="fas fa-utensils mr-2"></i>Meal
+            </button>
+            <button onclick="openLifeLogModal('book')" class="px-3 py-2 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-lg text-sm font-medium hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors">
+              <i class="fas fa-book mr-2"></i>Reading
+            </button>
+            <button onclick="openLifeLogModal('social')" class="px-3 py-2 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded-lg text-sm font-medium hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors">
+              <i class="fas fa-users mr-2"></i>Social
+            </button>
+            <button onclick="openLifeLogModal('custom')" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+              <i class="fas fa-plus mr-2"></i>Custom
+            </button>
+          </div>
+          
+          <!-- Life Log Entries -->
+          <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+            <div id="lifeLogContainer">
+              <div class="text-center py-16 text-slate-400">
+                <i class="fas fa-stream text-5xl mb-4 opacity-50"></i>
+                <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No activities logged</h3>
+                <p class="mb-4">Start tracking your life by logging activities</p>
+                <button onclick="openLifeLogModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                  <i class="fas fa-plus mr-2"></i>Log Activity
+                </button>
               </div>
             </div>
           </div>
