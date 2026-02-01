@@ -1,7 +1,6 @@
 // ========================================
 // Life ERP - Admin JavaScript
 // ========================================
-// Requires admin-config.js - credentials loaded from secrets on deploy
 
 // Storage Keys
 const STORAGE_KEYS = {
@@ -9,145 +8,132 @@ const STORAGE_KEYS = {
   goals: 'lifeErp_goals',
   habits: 'lifeErp_habits',
   finance: 'lifeErp_finance',
-  health: 'lifeErp_health',
   journal: 'lifeErp_journal',
-  events: 'lifeErp_events',
   lifeLog: 'lifeErp_lifeLog',
-  activityTypes: 'lifeErp_activityTypes',
   theme: 'lifeErp_theme'
 };
 
-// Default Activity Types
-const DEFAULT_ACTIVITY_TYPES = [
-  { id: 'tv', name: 'TV Show', icon: 'fa-tv', color: '#8b5cf6', fields: [
-    { key: 'show', label: 'Show Name', type: 'text', required: true },
-    { key: 'season', label: 'Season', type: 'number' },
-    { key: 'episode', label: 'Episode', type: 'number' },
-    { key: 'notes', label: 'Notes', type: 'textarea' }
-  ]},
-  { id: 'movie', name: 'Movie', icon: 'fa-film', color: '#ec4899', fields: [
-    { key: 'title', label: 'Movie Title', type: 'text', required: true },
-    { key: 'rating', label: 'Rating (1-10)', type: 'number' },
-    { key: 'notes', label: 'Notes', type: 'textarea' }
-  ]},
-  { id: 'sport', name: 'Sport/Activity', icon: 'fa-running', color: '#22c55e', fields: [
-    { key: 'activity', label: 'Activity', type: 'text', required: true },
-    { key: 'duration', label: 'Duration (min)', type: 'number' },
-    { key: 'location', label: 'Location', type: 'text' },
-    { key: 'notes', label: 'Notes', type: 'textarea' }
-  ]},
-  { id: 'golf', name: 'Golf Round', icon: 'fa-golf-ball', color: '#10b981', fields: [
-    { key: 'course', label: 'Course', type: 'text', required: true },
-    { key: 'score', label: 'Score', type: 'number' },
-    { key: 'holes', label: 'Holes (9/18)', type: 'number' },
-    { key: 'notes', label: 'Notes', type: 'textarea' }
-  ]},
-  { id: 'climbing', name: 'Climbing Session', icon: 'fa-mountain', color: '#f97316', fields: [
-    { key: 'location', label: 'Gym/Location', type: 'text', required: true },
-    { key: 'duration', label: 'Duration (min)', type: 'number' },
-    { key: 'hardestGrade', label: 'Hardest Grade', type: 'text' },
-    { key: 'notes', label: 'Notes', type: 'textarea' }
-  ]},
-  { id: 'purchase', name: 'Purchase', icon: 'fa-shopping-bag', color: '#f59e0b', fields: [
-    { key: 'item', label: 'Item', type: 'text', required: true },
-    { key: 'amount', label: 'Amount ($)', type: 'number', required: true },
-    { key: 'store', label: 'Store', type: 'text' },
-    { key: 'category', label: 'Category', type: 'text' }
-  ]},
-  { id: 'health', name: 'Health Metric', icon: 'fa-heartbeat', color: '#ef4444', fields: [
-    { key: 'metric', label: 'Metric Type', type: 'select', options: ['Steps', 'Weight', 'Sleep (hrs)', 'Water (glasses)', 'Calories', 'Other'], required: true },
-    { key: 'value', label: 'Value', type: 'number', required: true },
-    { key: 'notes', label: 'Notes', type: 'textarea' }
-  ]},
-  { id: 'workout', name: 'Workout', icon: 'fa-dumbbell', color: '#6366f1', fields: [
-    { key: 'type', label: 'Workout Type', type: 'text', required: true },
-    { key: 'duration', label: 'Duration (min)', type: 'number' },
-    { key: 'calories', label: 'Calories Burned', type: 'number' },
-    { key: 'notes', label: 'Notes', type: 'textarea' }
-  ]},
-  { id: 'meal', name: 'Meal', icon: 'fa-utensils', color: '#14b8a6', fields: [
-    { key: 'meal', label: 'Meal Type', type: 'select', options: ['Breakfast', 'Lunch', 'Dinner', 'Snack'], required: true },
-    { key: 'description', label: 'What you ate', type: 'text' },
-    { key: 'restaurant', label: 'Restaurant (if out)', type: 'text' },
-    { key: 'notes', label: 'Notes', type: 'textarea' }
-  ]},
-  { id: 'event', name: 'Event', icon: 'fa-calendar-check', color: '#3b82f6', fields: [
-    { key: 'title', label: 'Event Title', type: 'text', required: true },
-    { key: 'time', label: 'Time', type: 'time' },
-    { key: 'location', label: 'Location', type: 'text' },
-    { key: 'notes', label: 'Notes', type: 'textarea' }
-  ]},
-  { id: 'book', name: 'Reading', icon: 'fa-book', color: '#a855f7', fields: [
-    { key: 'title', label: 'Book Title', type: 'text', required: true },
-    { key: 'pages', label: 'Pages Read', type: 'number' },
-    { key: 'finished', label: 'Finished?', type: 'checkbox' },
-    { key: 'notes', label: 'Notes', type: 'textarea' }
-  ]},
-  { id: 'social', name: 'Social', icon: 'fa-users', color: '#0ea5e9', fields: [
-    { key: 'people', label: 'Who', type: 'text', required: true },
-    { key: 'activity', label: 'What', type: 'text' },
-    { key: 'location', label: 'Where', type: 'text' },
-    { key: 'notes', label: 'Notes', type: 'textarea' }
-  ]},
-  { id: 'custom', name: 'Custom Entry', icon: 'fa-sticky-note', color: '#64748b', fields: [
-    { key: 'title', label: 'Title', type: 'text', required: true },
-    { key: 'notes', label: 'Details', type: 'textarea' }
-  ]}
-];
+// Activity Types Configuration
+const ACTIVITY_TYPES = {
+  tv: { name: 'TV Show', icon: 'fa-tv', color: '#8b5cf6', plural: 'episodes', 
+    fields: [
+      { key: 'show', label: 'Show Name', type: 'text', required: true },
+      { key: 'season', label: 'Season', type: 'number' },
+      { key: 'episode', label: 'Episode', type: 'number' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  movie: { name: 'Movie', icon: 'fa-film', color: '#ec4899', plural: 'movies',
+    fields: [
+      { key: 'title', label: 'Movie Title', type: 'text', required: true },
+      { key: 'rating', label: 'Rating (1-10)', type: 'number' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  game: { name: 'Gaming', icon: 'fa-gamepad', color: '#22c55e', plural: 'sessions',
+    fields: [
+      { key: 'game', label: 'Game', type: 'text', required: true },
+      { key: 'duration', label: 'Duration (min)', type: 'number' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  golf: { name: 'Golf', icon: 'fa-golf-ball', color: '#10b981', plural: 'rounds',
+    fields: [
+      { key: 'course', label: 'Course', type: 'text', required: true },
+      { key: 'score', label: 'Score', type: 'number' },
+      { key: 'holes', label: 'Holes', type: 'select', options: ['9', '18'] },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  climbing: { name: 'Climbing', icon: 'fa-mountain', color: '#f97316', plural: 'sessions',
+    fields: [
+      { key: 'location', label: 'Gym/Location', type: 'text', required: true },
+      { key: 'duration', label: 'Duration (min)', type: 'number' },
+      { key: 'hardestGrade', label: 'Hardest Grade', type: 'text' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  workout: { name: 'Workout', icon: 'fa-dumbbell', color: '#6366f1', plural: 'workouts',
+    fields: [
+      { key: 'type', label: 'Workout Type', type: 'text', required: true },
+      { key: 'duration', label: 'Duration (min)', type: 'number' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  run: { name: 'Run', icon: 'fa-running', color: '#0ea5e9', plural: 'runs',
+    fields: [
+      { key: 'distance', label: 'Distance (mi)', type: 'number', required: true },
+      { key: 'duration', label: 'Duration (min)', type: 'number' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  purchase: { name: 'Purchase', icon: 'fa-shopping-bag', color: '#f59e0b', plural: 'purchases',
+    fields: [
+      { key: 'item', label: 'Item', type: 'text', required: true },
+      { key: 'amount', label: 'Amount ($)', type: 'number', required: true },
+      { key: 'store', label: 'Store', type: 'text' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  meal: { name: 'Meal', icon: 'fa-utensils', color: '#14b8a6', plural: 'meals',
+    fields: [
+      { key: 'meal', label: 'Meal', type: 'select', options: ['Breakfast', 'Lunch', 'Dinner', 'Snack'], required: true },
+      { key: 'description', label: 'What you ate', type: 'text' },
+      { key: 'restaurant', label: 'Restaurant', type: 'text' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  book: { name: 'Reading', icon: 'fa-book', color: '#a855f7', plural: 'sessions',
+    fields: [
+      { key: 'title', label: 'Book Title', type: 'text', required: true },
+      { key: 'pages', label: 'Pages Read', type: 'number' },
+      { key: 'finished', label: 'Finished Book', type: 'checkbox' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  social: { name: 'Social', icon: 'fa-users', color: '#0ea5e9', plural: 'hangouts',
+    fields: [
+      { key: 'people', label: 'Who', type: 'text', required: true },
+      { key: 'activity', label: 'What', type: 'text' },
+      { key: 'location', label: 'Where', type: 'text' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  health: { name: 'Health', icon: 'fa-heartbeat', color: '#ef4444', plural: 'entries',
+    fields: [
+      { key: 'metric', label: 'Metric', type: 'select', options: ['Weight', 'Steps', 'Sleep (hrs)', 'Water (glasses)', 'Calories', 'Blood Pressure', 'Other'], required: true },
+      { key: 'value', label: 'Value', type: 'number', required: true },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  event: { name: 'Event', icon: 'fa-calendar-check', color: '#3b82f6', plural: 'events',
+    fields: [
+      { key: 'title', label: 'Event', type: 'text', required: true },
+      { key: 'time', label: 'Time', type: 'time' },
+      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
+  note: { name: 'Note', icon: 'fa-sticky-note', color: '#64748b', plural: 'notes',
+    fields: [
+      { key: 'title', label: 'Title', type: 'text', required: true },
+      { key: 'content', label: 'Content', type: 'textarea' }
+    ]}
+};
 
 // ========================================
 // Utility Functions
 // ========================================
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
-
-const formatDate = (date) => new Date(date).toLocaleDateString('en-US', {
-  year: 'numeric', month: 'short', day: 'numeric'
-});
-
-const formatDateShort = (date) => new Date(date).toLocaleDateString('en-US', {
-  month: 'short', day: 'numeric'
-});
-
-const formatCurrency = (amount) => new Intl.NumberFormat('en-US', {
-  style: 'currency', currency: 'USD'
-}).format(amount);
+const formatDate = (date) => new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+const formatDateShort = (date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 
 const getFromStorage = (key) => {
-  try {
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : null;
-  } catch (e) {
-    console.error('Storage read error:', e);
-    return null;
-  }
+  try { return JSON.parse(localStorage.getItem(key)); } 
+  catch { return null; }
 };
-
 const saveToStorage = (key, data) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-    return true;
-  } catch (e) {
-    console.error('Storage write error:', e);
-    return false;
-  }
+  try { localStorage.setItem(key, JSON.stringify(data)); return true; } 
+  catch { return false; }
 };
 
 // ========================================
 // Authentication
 // ========================================
-const getAuthConfig = () => {
-  if (typeof AUTH_CONFIG === 'undefined') return null;
-  return AUTH_CONFIG;
-};
+const getAuthConfig = () => typeof AUTH_CONFIG !== 'undefined' ? AUTH_CONFIG : null;
 
 const createSession = () => {
   const config = getAuthConfig();
   if (!config) return false;
-  const session = {
-    authenticated: true,
-    createdAt: Date.now(),
-    expiresAt: Date.now() + config.sessionDuration
-  };
+  const session = { authenticated: true, createdAt: Date.now(), expiresAt: Date.now() + config.sessionDuration };
   saveToStorage(config.sessionKey, session);
   return session;
 };
@@ -156,11 +142,7 @@ const checkSession = () => {
   const config = getAuthConfig();
   if (!config) return false;
   const session = getFromStorage(config.sessionKey);
-  if (!session) return false;
-  if (Date.now() > session.expiresAt) {
-    clearSession();
-    return false;
-  }
+  if (!session || Date.now() > session.expiresAt) { clearSession(); return false; }
   return session.authenticated;
 };
 
@@ -169,153 +151,105 @@ const clearSession = () => {
   if (config) localStorage.removeItem(config.sessionKey);
 };
 
-const authenticate = (username, password) => {
+const authenticate = (u, p) => {
   const config = getAuthConfig();
-  if (!config) return false;
-  if (username === config.username && password === config.password) {
-    createSession();
-    return true;
-  }
+  if (config && u === config.username && p === config.password) { createSession(); return true; }
   return false;
 };
 
 // ========================================
-// Login Page Logic
+// Login Page
 // ========================================
 if (document.getElementById('loginForm')) {
   const loginForm = document.getElementById('loginForm');
-  const loginError = document.getElementById('loginError');
-  const togglePassword = document.getElementById('togglePassword');
-  const passwordInput = document.getElementById('password');
   
   if (!getAuthConfig()) {
-    loginForm.innerHTML = `
-      <div class="p-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-200">
-        <h3 class="font-semibold mb-2 flex items-center gap-2">
-          <i class="fas fa-exclamation-triangle"></i>
-          Admin Not Configured
-        </h3>
-        <p class="text-sm mb-4">Create <code class="bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">admin-config.js</code> from the example file and set your credentials.</p>
-      </div>
-    `;
+    loginForm.innerHTML = `<div class="p-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-200">
+      <h3 class="font-semibold mb-2"><i class="fas fa-exclamation-triangle mr-2"></i>Admin Not Configured</h3>
+      <p class="text-sm">Create admin-config.js from the example file.</p></div>`;
   } else if (checkSession()) {
     window.location.href = 'dashboard.html';
   } else {
-    togglePassword?.addEventListener('click', () => {
-      const type = passwordInput.type === 'password' ? 'text' : 'password';
-      passwordInput.type = type;
-      togglePassword.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+    document.getElementById('togglePassword')?.addEventListener('click', function() {
+      const pw = document.getElementById('password');
+      pw.type = pw.type === 'password' ? 'text' : 'password';
+      this.innerHTML = `<i class="fas fa-eye${pw.type === 'password' ? '' : '-slash'}"></i>`;
     });
     
     loginForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
-      
-      if (authenticate(username, password)) {
+      if (authenticate(document.getElementById('username').value, document.getElementById('password').value)) {
         window.location.href = 'dashboard.html';
       } else {
-        loginError.classList.remove('hidden');
-        loginError.classList.add('shake');
-        setTimeout(() => {
-          loginError.classList.add('hidden');
-          loginError.classList.remove('shake');
-        }, 3000);
+        const err = document.getElementById('loginError');
+        err.classList.remove('hidden');
+        setTimeout(() => err.classList.add('hidden'), 3000);
       }
     });
   }
 }
 
 // ========================================
-// Dashboard Logic
+// Dashboard
 // ========================================
 if (document.getElementById('mainContent')) {
-  if (!checkSession()) {
-    window.location.href = 'index.html';
-  }
+  if (!checkSession()) window.location.href = 'index.html';
   
-  // Data stores
+  // Data
   let tasks = getFromStorage(STORAGE_KEYS.tasks) || [];
   let goals = getFromStorage(STORAGE_KEYS.goals) || [];
   let habits = getFromStorage(STORAGE_KEYS.habits) || [];
   let finance = getFromStorage(STORAGE_KEYS.finance) || { transactions: [] };
-  let health = getFromStorage(STORAGE_KEYS.health) || { entries: [], workouts: [] };
   let journal = getFromStorage(STORAGE_KEYS.journal) || [];
-  let events = getFromStorage(STORAGE_KEYS.events) || [];
   let lifeLog = getFromStorage(STORAGE_KEYS.lifeLog) || [];
-  let activityTypes = getFromStorage(STORAGE_KEYS.activityTypes) || DEFAULT_ACTIVITY_TYPES;
   
-  // Ensure default activity types exist
-  if (!getFromStorage(STORAGE_KEYS.activityTypes)) {
-    saveToStorage(STORAGE_KEYS.activityTypes, DEFAULT_ACTIVITY_TYPES);
-  }
+  // State
+  let currentDate = new Date();
+  let selectedDate = new Date().toISOString().split('T')[0];
+  let currentLibraryType = 'tv';
   
   // ========================================
   // Theme
   // ========================================
   const html = document.documentElement;
-  const themeToggle = document.getElementById('themeToggle');
-  
   if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     html.classList.add('dark');
   }
-  
-  themeToggle?.addEventListener('click', () => {
+  document.getElementById('themeToggle')?.addEventListener('click', () => {
     html.classList.toggle('dark');
     localStorage.theme = html.classList.contains('dark') ? 'dark' : 'light';
   });
   
   // ========================================
-  // Sidebar & Navigation
+  // Navigation
   // ========================================
   const sidebar = document.getElementById('sidebar');
-  const mainContent = document.getElementById('mainContent');
-  const sidebarToggle = document.getElementById('sidebarToggle');
-  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-  
-  sidebarToggle?.addEventListener('click', () => {
+  document.getElementById('sidebarToggle')?.addEventListener('click', () => {
     sidebar.classList.toggle('sidebar-collapsed');
-    mainContent.classList.toggle('ml-64');
-    mainContent.classList.toggle('ml-20');
+    document.getElementById('mainContent').classList.toggle('ml-64');
+    document.getElementById('mainContent').classList.toggle('ml-20');
   });
+  document.getElementById('mobileMenuBtn')?.addEventListener('click', () => sidebar.classList.toggle('-translate-x-full'));
   
-  mobileMenuBtn?.addEventListener('click', () => {
-    sidebar.classList.toggle('-translate-x-full');
-  });
-  
-  const showSection = (sectionId) => {
+  const showSection = (id) => {
     document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden'));
     document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active', 'bg-blue-600'));
-    
-    const section = document.getElementById(sectionId);
-    const link = document.querySelector(`[data-section="${sectionId}"]`);
-    
-    if (section) {
-      section.classList.remove('hidden');
-      section.classList.add('animate-in');
-    }
-    if (link) link.classList.add('active', 'bg-blue-600');
-    
+    document.getElementById(id)?.classList.remove('hidden');
+    document.querySelector(`[data-section="${id}"]`)?.classList.add('active', 'bg-blue-600');
     if (window.innerWidth < 1024) sidebar.classList.add('-translate-x-full');
+    
+    // Render section-specific content
+    if (id === 'lifelog') { renderCalendar(); renderDayDetail(); }
+    if (id === 'library') renderLibrary();
   };
-  
   window.showSection = showSection;
   
   document.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      showSection(link.dataset.section);
-    });
+    link.addEventListener('click', (e) => { e.preventDefault(); showSection(link.dataset.section); });
   });
   
-  // ========================================
   // Logout
-  // ========================================
-  const handleLogout = () => {
-    clearSession();
-    window.location.href = 'index.html';
-  };
-  
+  const handleLogout = () => { clearSession(); window.location.href = 'index.html'; };
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.getElementById('logoutSettings')?.addEventListener('click', handleLogout);
   
@@ -323,94 +257,350 @@ if (document.getElementById('mainContent')) {
   // Modal
   // ========================================
   const modalOverlay = document.getElementById('modalOverlay');
-  const modalTitle = document.getElementById('modalTitle');
-  const modalBody = document.getElementById('modalBody');
-  const modalClose = document.getElementById('modalClose');
-  
   const openModal = (title, content) => {
-    modalTitle.textContent = title;
-    modalBody.innerHTML = content;
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').innerHTML = content;
     modalOverlay.classList.remove('hidden');
     modalOverlay.classList.add('flex');
   };
-  
-  const closeModal = () => {
-    modalOverlay.classList.add('hidden');
-    modalOverlay.classList.remove('flex');
-  };
-  
+  const closeModal = () => { modalOverlay.classList.add('hidden'); modalOverlay.classList.remove('flex'); };
   window.openModal = openModal;
   window.closeModal = closeModal;
-  
-  modalClose?.addEventListener('click', closeModal);
-  modalOverlay?.addEventListener('click', (e) => {
-    if (e.target === modalOverlay) closeModal();
-  });
+  document.getElementById('modalClose')?.addEventListener('click', closeModal);
+  modalOverlay?.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
   
   // ========================================
-  // Life Log - Universal Activity Tracking
+  // Life Log - Core Functions
   // ========================================
-  const getActivityType = (typeId) => activityTypes.find(t => t.id === typeId);
+  const getEntriesForDate = (dateStr) => lifeLog.filter(e => e.date === dateStr);
   
-  const renderLifeLogEntry = (entry) => {
-    const type = getActivityType(entry.type);
-    if (!type) return '';
+  const getAggregatedCounts = (dateStr) => {
+    const entries = getEntriesForDate(dateStr);
+    const counts = {};
+    entries.forEach(e => {
+      if (!counts[e.type]) counts[e.type] = 0;
+      counts[e.type]++;
+    });
+    return counts;
+  };
+  
+  // Group consecutive episodes for a show on a given date
+  const groupTVEpisodes = (entries) => {
+    const tvEntries = entries.filter(e => e.type === 'tv');
+    if (tvEntries.length === 0) return [];
     
-    const mainValue = entry.data[type.fields[0]?.key] || 'Entry';
-    const secondaryValues = type.fields.slice(1, 3)
-      .map(f => entry.data[f.key])
-      .filter(v => v)
-      .join(' • ');
+    // Group by show+season
+    const groups = {};
+    tvEntries.forEach(e => {
+      const key = `${e.data.show}|S${e.data.season || 1}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(e);
+    });
     
-    return `
-      <div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl group">
-        <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: ${type.color}20">
-          <i class="fas ${type.icon}" style="color: ${type.color}"></i>
+    // For each group, find consecutive episode ranges
+    const result = [];
+    Object.entries(groups).forEach(([key, eps]) => {
+      const [show, season] = key.split('|');
+      eps.sort((a, b) => (a.data.episode || 0) - (b.data.episode || 0));
+      
+      let ranges = [];
+      let start = eps[0];
+      let end = eps[0];
+      
+      for (let i = 1; i < eps.length; i++) {
+        const curr = eps[i];
+        const prevEp = end.data.episode || 0;
+        const currEp = curr.data.episode || 0;
+        
+        if (currEp === prevEp + 1) {
+          end = curr;
+        } else {
+          ranges.push({ show, season, start, end, entries: eps.slice(ranges.length === 0 ? 0 : ranges[ranges.length-1].endIdx + 1, i) });
+          start = curr;
+          end = curr;
+        }
+      }
+      ranges.push({ show, season, start, end, count: eps.length });
+      
+      ranges.forEach(r => {
+        const startEp = r.start.data.episode || 0;
+        const endEp = r.end.data.episode || 0;
+        const epRange = startEp === endEp ? `E${startEp}` : `E${startEp}-${endEp}`;
+        const count = endEp - startEp + 1;
+        result.push({
+          type: 'tv',
+          show: r.show,
+          season: r.season,
+          episodeRange: epRange,
+          count: count,
+          entries: eps.filter(e => (e.data.episode || 0) >= startEp && (e.data.episode || 0) <= endEp),
+          hasNotes: eps.some(e => e.data.notes)
+        });
+      });
+    });
+    
+    return result;
+  };
+  
+  // Group other entry types for display
+  const groupEntriesByType = (entries, type) => {
+    const typeEntries = entries.filter(e => e.type === type);
+    if (type === 'tv') return groupTVEpisodes(entries);
+    
+    // For games, group by game name
+    if (type === 'game') {
+      const groups = {};
+      typeEntries.forEach(e => {
+        const key = e.data.game;
+        if (!groups[key]) groups[key] = { entries: [], totalDuration: 0 };
+        groups[key].entries.push(e);
+        groups[key].totalDuration += e.data.duration || 0;
+      });
+      return Object.entries(groups).map(([game, data]) => ({
+        type: 'game', game, count: data.entries.length, duration: data.totalDuration, entries: data.entries
+      }));
+    }
+    
+    // Default: return as-is
+    return typeEntries.map(e => ({ type, entry: e, entries: [e] }));
+  };
+  
+  // ========================================
+  // Calendar Rendering
+  // ========================================
+  const renderCalendar = () => {
+    const grid = document.getElementById('calendarGrid');
+    const monthLabel = document.getElementById('currentMonth');
+    if (!grid) return;
+    
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    monthLabel.textContent = new Date(year, month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date().toISOString().split('T')[0];
+    
+    let html = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => 
+      `<div class="text-center text-xs font-semibold text-slate-500 dark:text-slate-400 py-3">${d}</div>`
+    ).join('');
+    
+    for (let i = 0; i < firstDay; i++) html += '<div></div>';
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const counts = getAggregatedCounts(dateStr);
+      const isToday = dateStr === today;
+      const isSelected = dateStr === selectedDate;
+      const hasEntries = Object.keys(counts).length > 0;
+      const totalEntries = Object.values(counts).reduce((a, b) => a + b, 0);
+      
+      // Build summary badges
+      let badges = '';
+      if (hasEntries) {
+        const badgeItems = Object.entries(counts).slice(0, 3).map(([type, count]) => {
+          const t = ACTIVITY_TYPES[type];
+          return `<span class="inline-flex items-center gap-1 text-[10px]" style="color: ${t?.color || '#666'}">
+            <i class="fas ${t?.icon || 'fa-circle'} text-[8px]"></i>${count}
+          </span>`;
+        }).join('');
+        badges = `<div class="flex flex-wrap justify-center gap-1 mt-1">${badgeItems}</div>`;
+        if (Object.keys(counts).length > 3) {
+          badges += `<div class="text-[9px] text-slate-400">+${Object.keys(counts).length - 3} more</div>`;
+        }
+      }
+      
+      html += `
+        <div onclick="selectDate('${dateStr}')" class="relative min-h-[70px] p-1 rounded-xl cursor-pointer transition-all border-2
+          ${isSelected ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'}
+          ${isToday ? 'ring-2 ring-blue-400 ring-offset-2 dark:ring-offset-slate-900' : ''}">
+          <div class="text-center">
+            <span class="text-sm font-medium ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}">${day}</span>
+            ${badges}
+          </div>
         </div>
-        <div class="flex-1 min-w-0">
-          <p class="font-medium text-slate-900 dark:text-white text-sm truncate">${mainValue}</p>
-          <p class="text-xs text-slate-500 dark:text-slate-400">${type.name}${secondaryValues ? ' • ' + secondaryValues : ''}</p>
+      `;
+    }
+    
+    grid.innerHTML = html;
+  };
+  
+  window.selectDate = (dateStr) => {
+    selectedDate = dateStr;
+    renderCalendar();
+    renderDayDetail();
+  };
+  
+  document.getElementById('prevMonth')?.addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); });
+  document.getElementById('nextMonth')?.addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); });
+  
+  // ========================================
+  // Day Detail Panel
+  // ========================================
+  const renderDayDetail = () => {
+    const container = document.getElementById('dayDetail');
+    if (!container) return;
+    
+    const entries = getEntriesForDate(selectedDate);
+    const dateLabel = formatDate(selectedDate);
+    
+    if (entries.length === 0) {
+      container.innerHTML = `
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-slate-900 dark:text-white">${dateLabel}</h3>
+          <button onclick="openLogModal()" class="px-3 py-1.5 gradient-bg text-white text-sm rounded-lg"><i class="fas fa-plus mr-1"></i>Log</button>
         </div>
-        <button onclick="deleteLifeLogEntry('${entry.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all">
-          <i class="fas fa-trash text-xs"></i>
-        </button>
+        <div class="text-center py-12 text-slate-400">
+          <i class="fas fa-calendar-day text-4xl mb-3 opacity-50"></i>
+          <p>Nothing logged for this day</p>
+          <button onclick="openLogModal()" class="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+            <i class="fas fa-plus mr-2"></i>Add Entry
+          </button>
+        </div>
+      `;
+      return;
+    }
+    
+    // Group entries by type
+    const groupedByType = {};
+    entries.forEach(e => {
+      if (!groupedByType[e.type]) groupedByType[e.type] = [];
+      groupedByType[e.type].push(e);
+    });
+    
+    let html = `
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white">${dateLabel}</h3>
+        <button onclick="openLogModal()" class="px-3 py-1.5 gradient-bg text-white text-sm rounded-lg"><i class="fas fa-plus mr-1"></i>Log</button>
       </div>
+      <div class="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
     `;
+    
+    Object.entries(groupedByType).forEach(([type, typeEntries]) => {
+      const t = ACTIVITY_TYPES[type];
+      
+      if (type === 'tv') {
+        // Smart grouping for TV
+        const grouped = groupTVEpisodes(entries);
+        grouped.forEach(g => {
+          html += `
+            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: ${t.color}20">
+                  <i class="fas ${t.icon}" style="color: ${t.color}"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-medium text-slate-900 dark:text-white">${g.show}</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">${g.season} ${g.episodeRange} · ${g.count} episode${g.count > 1 ? 's' : ''}</p>
+                </div>
+                <button onclick="showEntriesDetail('${type}', '${g.show}', '${selectedDate}')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        });
+      } else if (type === 'game') {
+        // Group games
+        const gameGroups = {};
+        typeEntries.forEach(e => {
+          if (!gameGroups[e.data.game]) gameGroups[e.data.game] = { entries: [], duration: 0 };
+          gameGroups[e.data.game].entries.push(e);
+          gameGroups[e.data.game].duration += e.data.duration || 0;
+        });
+        
+        Object.entries(gameGroups).forEach(([game, data]) => {
+          html += `
+            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: ${t.color}20">
+                  <i class="fas ${t.icon}" style="color: ${t.color}"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-medium text-slate-900 dark:text-white">${game}</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">${data.entries.length} session${data.entries.length > 1 ? 's' : ''}${data.duration ? ` · ${Math.round(data.duration / 60 * 10) / 10}h` : ''}</p>
+                </div>
+                <button onclick="deleteEntry('${data.entries[0].id}')" class="p-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100">
+                  <i class="fas fa-trash text-xs"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        });
+      } else {
+        // Individual entries for other types
+        typeEntries.forEach(e => {
+          const mainField = t.fields[0]?.key;
+          const mainValue = e.data[mainField] || 'Entry';
+          const secondaryInfo = t.fields.slice(1, 3).map(f => e.data[f.key]).filter(Boolean).join(' · ');
+          
+          html += `
+            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 group">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: ${t.color}20">
+                  <i class="fas ${t.icon}" style="color: ${t.color}"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-medium text-slate-900 dark:text-white">${mainValue}</p>
+                  ${secondaryInfo ? `<p class="text-sm text-slate-500 dark:text-slate-400">${secondaryInfo}</p>` : ''}
+                </div>
+                <button onclick="deleteEntry('${e.id}')" class="p-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <i class="fas fa-trash text-xs"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        });
+      }
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
   };
   
-  const addLifeLogEntry = (typeId, data, date = new Date().toISOString().split('T')[0]) => {
-    const entry = {
-      id: generateId(),
-      type: typeId,
-      date: date,
-      data: data,
-      createdAt: Date.now()
-    };
-    lifeLog.push(entry);
-    saveToStorage(STORAGE_KEYS.lifeLog, lifeLog);
-    renderLifeLog();
-    renderCalendar();
-    updateDashboardStats();
-    return entry;
+  window.showEntriesDetail = (type, groupKey, date) => {
+    const entries = getEntriesForDate(date).filter(e => {
+      if (type === 'tv') return e.type === 'tv' && e.data.show === groupKey;
+      if (type === 'game') return e.type === 'game' && e.data.game === groupKey;
+      return e.type === type;
+    });
+    
+    const t = ACTIVITY_TYPES[type];
+    let html = `<div class="space-y-3">`;
+    entries.forEach(e => {
+      let detail = '';
+      if (type === 'tv') detail = `S${e.data.season || 1} E${e.data.episode || 1}`;
+      else detail = t.fields.slice(1).map(f => e.data[f.key]).filter(Boolean).join(' · ');
+      
+      html += `
+        <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+          <div>
+            <p class="font-medium text-slate-900 dark:text-white">${detail}</p>
+            ${e.data.notes ? `<p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${e.data.notes}</p>` : ''}
+          </div>
+          <button onclick="deleteEntry('${e.id}'); closeModal();" class="p-2 text-red-400 hover:text-red-600">
+            <i class="fas fa-trash text-xs"></i>
+          </button>
+        </div>
+      `;
+    });
+    html += '</div>';
+    
+    openModal(`${groupKey} - ${formatDateShort(date)}`, html);
   };
   
-  window.deleteLifeLogEntry = (id) => {
-    lifeLog = lifeLog.filter(e => e.id !== id);
-    saveToStorage(STORAGE_KEYS.lifeLog, lifeLog);
-    renderLifeLog();
-    renderCalendar();
-    updateDashboardStats();
-  };
-  
-  const openLifeLogModal = (preselectedType = null) => {
-    const typeOptions = activityTypes.map(t => 
-      `<option value="${t.id}" ${preselectedType === t.id ? 'selected' : ''}>${t.name}</option>`
+  // ========================================
+  // Log Entry Modal
+  // ========================================
+  const openLogModal = (preselectedType = null) => {
+    const typeOptions = Object.entries(ACTIVITY_TYPES).map(([id, t]) => 
+      `<option value="${id}" ${preselectedType === id ? 'selected' : ''}>${t.name}</option>`
     ).join('');
     
     openModal('Log Activity', `
-      <form id="lifeLogForm" class="space-y-4">
+      <form id="logForm" class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Activity Type</label>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
           <select id="logType" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
             ${typeOptions}
           </select>
@@ -418,318 +608,321 @@ if (document.getElementById('mainContent')) {
         <div id="dynamicFields"></div>
         <div>
           <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
-          <input type="date" id="logDate" value="${new Date().toISOString().split('T')[0]}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+          <input type="date" id="logDate" value="${selectedDate}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
         </div>
-        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg hover:shadow-lg transition-all">
-          <i class="fas fa-plus mr-2"></i>Log Activity
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg">
+          <i class="fas fa-plus mr-2"></i>Log Entry
         </button>
       </form>
     `);
     
-    const updateDynamicFields = () => {
-      const typeId = document.getElementById('logType').value;
-      const type = getActivityType(typeId);
-      const container = document.getElementById('dynamicFields');
-      
-      if (!type) return;
-      
-      container.innerHTML = type.fields.map(field => {
-        if (field.type === 'select') {
-          return `
-            <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${field.label}</label>
-              <select id="field_${field.key}" ${field.required ? 'required' : ''} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-                ${field.options.map(o => `<option value="${o}">${o}</option>`).join('')}
-              </select>
-            </div>
-          `;
-        } else if (field.type === 'textarea') {
-          return `
-            <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${field.label}</label>
-              <textarea id="field_${field.key}" rows="2" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea>
-            </div>
-          `;
-        } else if (field.type === 'checkbox') {
-          return `
-            <div class="flex items-center gap-2">
-              <input type="checkbox" id="field_${field.key}" class="w-4 h-4 rounded">
-              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">${field.label}</label>
-            </div>
-          `;
+    const updateFields = () => {
+      const type = document.getElementById('logType').value;
+      const t = ACTIVITY_TYPES[type];
+      document.getElementById('dynamicFields').innerHTML = t.fields.map(f => {
+        if (f.type === 'select') {
+          return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
+            <select id="field_${f.key}" ${f.required ? 'required' : ''} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+              ${f.options.map(o => `<option value="${o}">${o}</option>`).join('')}
+            </select></div>`;
+        } else if (f.type === 'textarea') {
+          return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
+            <textarea id="field_${f.key}" rows="2" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea></div>`;
+        } else if (f.type === 'checkbox') {
+          return `<div class="flex items-center gap-2"><input type="checkbox" id="field_${f.key}" class="w-4 h-4 rounded">
+            <label class="text-sm font-medium text-slate-700 dark:text-slate-300">${f.label}</label></div>`;
         } else {
-          return `
-            <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${field.label}</label>
-              <input type="${field.type}" id="field_${field.key}" ${field.required ? 'required' : ''} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            </div>
-          `;
+          return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
+            <input type="${f.type}" id="field_${f.key}" ${f.required ? 'required' : ''} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>`;
         }
       }).join('');
     };
     
-    document.getElementById('logType').addEventListener('change', updateDynamicFields);
-    updateDynamicFields();
+    document.getElementById('logType').addEventListener('change', updateFields);
+    updateFields();
     
-    document.getElementById('lifeLogForm').addEventListener('submit', (e) => {
+    document.getElementById('logForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      const typeId = document.getElementById('logType').value;
-      const type = getActivityType(typeId);
-      const date = document.getElementById('logDate').value;
-      
+      const type = document.getElementById('logType').value;
+      const t = ACTIVITY_TYPES[type];
       const data = {};
-      type.fields.forEach(field => {
-        const el = document.getElementById(`field_${field.key}`);
-        if (el) {
-          data[field.key] = field.type === 'checkbox' ? el.checked : (field.type === 'number' ? parseFloat(el.value) || 0 : el.value);
-        }
+      t.fields.forEach(f => {
+        const el = document.getElementById(`field_${f.key}`);
+        if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? parseFloat(el.value) || 0 : el.value);
       });
       
-      addLifeLogEntry(typeId, data, date);
+      lifeLog.push({ id: generateId(), type, date: document.getElementById('logDate').value, data, createdAt: Date.now() });
+      saveToStorage(STORAGE_KEYS.lifeLog, lifeLog);
+      renderCalendar();
+      renderDayDetail();
+      updateStats();
       closeModal();
     });
   };
   
-  window.openLifeLogModal = openLifeLogModal;
+  window.openLogModal = openLogModal;
   
-  const renderLifeLog = () => {
-    const container = document.getElementById('lifeLogContainer');
+  window.deleteEntry = (id) => {
+    lifeLog = lifeLog.filter(e => e.id !== id);
+    saveToStorage(STORAGE_KEYS.lifeLog, lifeLog);
+    renderCalendar();
+    renderDayDetail();
+    updateStats();
+  };
+  
+  // ========================================
+  // Library - Aggregate Views
+  // ========================================
+  const renderLibrary = () => {
+    const container = document.getElementById('libraryContent');
+    const typeSelect = document.getElementById('libraryType');
     if (!container) return;
     
-    if (lifeLog.length === 0) {
+    const type = currentLibraryType;
+    const t = ACTIVITY_TYPES[type];
+    const entries = lifeLog.filter(e => e.type === type);
+    
+    if (entries.length === 0) {
       container.innerHTML = `
         <div class="text-center py-16 text-slate-400">
-          <i class="fas fa-stream text-5xl mb-4 opacity-50"></i>
-          <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No activities logged</h3>
-          <p class="mb-4">Start tracking your life by logging activities</p>
-          <button onclick="openLifeLogModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            <i class="fas fa-plus mr-2"></i>Log Activity
-          </button>
+          <i class="fas ${t.icon} text-5xl mb-4 opacity-50"></i>
+          <p>No ${t.name.toLowerCase()} entries yet</p>
         </div>
       `;
       return;
     }
     
-    // Group by date
-    const grouped = {};
-    lifeLog.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(entry => {
-      if (!grouped[entry.date]) grouped[entry.date] = [];
-      grouped[entry.date].push(entry);
+    let html = '';
+    
+    if (type === 'tv') {
+      // Group by show, then by season
+      const shows = {};
+      entries.forEach(e => {
+        const show = e.data.show;
+        const season = e.data.season || 1;
+        if (!shows[show]) shows[show] = { seasons: {}, totalEpisodes: 0, lastWatched: e.date };
+        if (!shows[show].seasons[season]) shows[show].seasons[season] = [];
+        shows[show].seasons[season].push(e);
+        shows[show].totalEpisodes++;
+        if (e.date > shows[show].lastWatched) shows[show].lastWatched = e.date;
+      });
+      
+      // Sort by last watched
+      const sortedShows = Object.entries(shows).sort((a, b) => new Date(b[1].lastWatched) - new Date(a[1].lastWatched));
+      
+      html = `<div class="space-y-4">`;
+      sortedShows.forEach(([show, data]) => {
+        const seasonCount = Object.keys(data.seasons).length;
+        const seasonSummary = Object.entries(data.seasons).map(([s, eps]) => {
+          eps.sort((a, b) => (a.data.episode || 0) - (b.data.episode || 0));
+          const first = eps[0].data.episode || 1;
+          const last = eps[eps.length - 1].data.episode || 1;
+          return `S${s}: E${first}${first !== last ? `-${last}` : ''}`;
+        }).join(', ');
+        
+        html += `
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div class="flex items-start gap-4">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
+                <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h4 class="font-semibold text-slate-900 dark:text-white">${show}</h4>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${data.totalEpisodes} episodes across ${seasonCount} season${seasonCount > 1 ? 's' : ''}</p>
+                <p class="text-xs text-slate-400 mt-2">${seasonSummary}</p>
+                <p class="text-xs text-slate-400 mt-1">Last watched: ${formatDateShort(data.lastWatched)}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+    } else if (type === 'game') {
+      // Group by game
+      const games = {};
+      entries.forEach(e => {
+        const game = e.data.game;
+        if (!games[game]) games[game] = { sessions: 0, totalTime: 0, lastPlayed: e.date };
+        games[game].sessions++;
+        games[game].totalTime += e.data.duration || 0;
+        if (e.date > games[game].lastPlayed) games[game].lastPlayed = e.date;
+      });
+      
+      const sorted = Object.entries(games).sort((a, b) => new Date(b[1].lastPlayed) - new Date(a[1].lastPlayed));
+      
+      html = `<div class="space-y-4">`;
+      sorted.forEach(([game, data]) => {
+        const hours = Math.round(data.totalTime / 60 * 10) / 10;
+        html += `
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: ${t.color}20">
+                <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
+              </div>
+              <div class="flex-1">
+                <h4 class="font-semibold text-slate-900 dark:text-white">${game}</h4>
+                <p class="text-sm text-slate-500 dark:text-slate-400">${data.sessions} sessions · ${hours}h total</p>
+                <p class="text-xs text-slate-400 mt-1">Last played: ${formatDateShort(data.lastPlayed)}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+    } else if (type === 'book') {
+      // Group by book
+      const books = {};
+      entries.forEach(e => {
+        const title = e.data.title;
+        if (!books[title]) books[title] = { sessions: 0, pages: 0, finished: false, lastRead: e.date };
+        books[title].sessions++;
+        books[title].pages += e.data.pages || 0;
+        if (e.data.finished) books[title].finished = true;
+        if (e.date > books[title].lastRead) books[title].lastRead = e.date;
+      });
+      
+      const sorted = Object.entries(books).sort((a, b) => new Date(b[1].lastRead) - new Date(a[1].lastRead));
+      
+      html = `<div class="space-y-4">`;
+      sorted.forEach(([title, data]) => {
+        html += `
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: ${t.color}20">
+                <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
+              </div>
+              <div class="flex-1">
+                <h4 class="font-semibold text-slate-900 dark:text-white">${title}</h4>
+                <p class="text-sm text-slate-500 dark:text-slate-400">${data.pages} pages · ${data.sessions} sessions ${data.finished ? '· <span class="text-green-500">Finished</span>' : ''}</p>
+                <p class="text-xs text-slate-400 mt-1">Last read: ${formatDateShort(data.lastRead)}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+    } else if (type === 'movie') {
+      // List all movies
+      const sorted = entries.sort((a, b) => new Date(b.date) - new Date(a.date));
+      html = `<div class="space-y-4">`;
+      sorted.forEach(e => {
+        html += `
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: ${t.color}20">
+                <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
+              </div>
+              <div class="flex-1">
+                <h4 class="font-semibold text-slate-900 dark:text-white">${e.data.title}</h4>
+                <p class="text-sm text-slate-500 dark:text-slate-400">${e.data.rating ? `★ ${e.data.rating}/10 · ` : ''}${formatDateShort(e.date)}</p>
+                ${e.data.notes ? `<p class="text-xs text-slate-400 mt-1">${e.data.notes}</p>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+    } else {
+      // Generic list for other types
+      const sorted = entries.sort((a, b) => new Date(b.date) - new Date(a.date));
+      html = `<div class="space-y-3">`;
+      sorted.forEach(e => {
+        const mainField = t.fields[0]?.key;
+        const mainValue = e.data[mainField] || 'Entry';
+        const secondaryInfo = t.fields.slice(1, 3).map(f => e.data[f.key]).filter(Boolean).join(' · ');
+        
+        html += `
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div class="flex items-center gap-4">
+              <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: ${t.color}20">
+                <i class="fas ${t.icon}" style="color: ${t.color}"></i>
+              </div>
+              <div class="flex-1">
+                <p class="font-medium text-slate-900 dark:text-white">${mainValue}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">${secondaryInfo ? secondaryInfo + ' · ' : ''}${formatDateShort(e.date)}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+    }
+    
+    container.innerHTML = html;
+  };
+  
+  window.setLibraryType = (type) => {
+    currentLibraryType = type;
+    // Update active state on type buttons
+    document.querySelectorAll('.library-type-btn').forEach(btn => {
+      btn.classList.remove('bg-blue-600', 'text-white');
+      btn.classList.add('bg-slate-100', 'dark:bg-slate-700', 'text-slate-700', 'dark:text-slate-300');
     });
-    
-    container.innerHTML = Object.entries(grouped).slice(0, 10).map(([date, entries]) => `
-      <div class="mb-6">
-        <h4 class="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-3">${formatDate(date)}</h4>
-        <div class="space-y-2">
-          ${entries.map(renderLifeLogEntry).join('')}
-        </div>
-      </div>
-    `).join('');
+    document.querySelector(`[data-library-type="${type}"]`)?.classList.remove('bg-slate-100', 'dark:bg-slate-700', 'text-slate-700', 'dark:text-slate-300');
+    document.querySelector(`[data-library-type="${type}"]`)?.classList.add('bg-blue-600', 'text-white');
+    renderLibrary();
   };
-  
-  document.getElementById('addLifeLogBtn')?.addEventListener('click', () => openLifeLogModal());
-  
-  // ========================================
-  // Calendar with Life Log Integration
-  // ========================================
-  let currentDate = new Date();
-  let selectedDate = null;
-  
-  const getEntriesForDate = (dateStr) => {
-    return lifeLog.filter(e => e.date === dateStr);
-  };
-  
-  const renderCalendar = () => {
-    const grid = document.getElementById('calendarGrid');
-    const monthLabel = document.getElementById('currentMonth');
-    const dayDetail = document.getElementById('dayDetail');
-    if (!grid) return;
-    
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    
-    monthLabel.textContent = new Date(year, month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    let html = days.map(d => `<div class="text-center text-xs font-medium text-slate-500 dark:text-slate-400 py-2">${d}</div>`).join('');
-    
-    for (let i = 0; i < firstDay; i++) {
-      html += '<div></div>';
-    }
-    
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const entries = getEntriesForDate(dateStr);
-      const isToday = dateStr === todayStr;
-      const isSelected = dateStr === selectedDate;
-      const hasEntries = entries.length > 0;
-      
-      // Get unique activity type colors for dots
-      const uniqueTypes = [...new Set(entries.map(e => e.type))].slice(0, 4);
-      const dots = uniqueTypes.map(typeId => {
-        const type = getActivityType(typeId);
-        return type ? `<div class="w-1.5 h-1.5 rounded-full" style="background: ${type.color}"></div>` : '';
-      }).join('');
-      
-      html += `
-        <div onclick="selectCalendarDate('${dateStr}')" class="relative text-center py-2 rounded-xl cursor-pointer transition-all
-          ${isToday ? 'gradient-bg text-white font-bold' : ''}
-          ${isSelected && !isToday ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30' : ''}
-          ${!isToday && !isSelected ? 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300' : ''}">
-          <span>${day}</span>
-          ${hasEntries ? `<div class="flex justify-center gap-0.5 mt-1">${dots}</div>` : ''}
-        </div>
-      `;
-    }
-    
-    grid.innerHTML = html;
-    
-    // Show selected date detail
-    if (selectedDate) {
-      renderDayDetail(selectedDate);
-    }
-  };
-  
-  window.selectCalendarDate = (dateStr) => {
-    selectedDate = dateStr;
-    renderCalendar();
-    renderDayDetail(dateStr);
-  };
-  
-  const renderDayDetail = (dateStr) => {
-    const container = document.getElementById('dayDetail');
-    if (!container) return;
-    
-    const entries = getEntriesForDate(dateStr);
-    const dateLabel = formatDate(dateStr);
-    
-    container.innerHTML = `
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="font-semibold text-slate-900 dark:text-white">${dateLabel}</h3>
-        <button onclick="openLifeLogModalForDate('${dateStr}')" class="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors">
-          <i class="fas fa-plus mr-1"></i>Add
-        </button>
-      </div>
-      ${entries.length === 0 
-        ? '<p class="text-center py-8 text-slate-400 text-sm">No activities on this day</p>'
-        : `<div class="space-y-2 max-h-[400px] overflow-y-auto">${entries.map(renderLifeLogEntry).join('')}</div>`
-      }
-    `;
-  };
-  
-  window.openLifeLogModalForDate = (dateStr) => {
-    openLifeLogModal();
-    setTimeout(() => {
-      const dateInput = document.getElementById('logDate');
-      if (dateInput) dateInput.value = dateStr;
-    }, 50);
-  };
-  
-  document.getElementById('prevMonth')?.addEventListener('click', () => {
-    currentDate.setMonth(currentDate.getMonth() - 1);
-    renderCalendar();
-  });
-  
-  document.getElementById('nextMonth')?.addEventListener('click', () => {
-    currentDate.setMonth(currentDate.getMonth() + 1);
-    renderCalendar();
-  });
   
   // ========================================
   // Tasks
   // ========================================
   const renderTasks = () => {
-    const todoContainer = document.getElementById('todoTasks');
-    const progressContainer = document.getElementById('inProgressTasks');
-    const doneContainer = document.getElementById('doneTasks');
+    const todo = document.getElementById('todoTasks');
+    const progress = document.getElementById('inProgressTasks');
+    const done = document.getElementById('doneTasks');
+    if (!todo) return;
     
-    if (!todoContainer) return;
-    
-    const todoTasks = tasks.filter(t => t.status === 'todo');
-    const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
-    const doneTasks = tasks.filter(t => t.status === 'done');
-    
-    const renderList = (container, list) => {
-      container.innerHTML = list.length === 0 ? '' : list.map(task => `
+    const render = (container, list) => {
+      container.innerHTML = list.map(t => `
         <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm group">
-          <h4 class="font-medium text-slate-900 dark:text-white text-sm mb-1">${task.title}</h4>
-          ${task.description ? `<p class="text-xs text-slate-500 dark:text-slate-400 mb-2">${task.description}</p>` : ''}
-          ${task.dueDate ? `<p class="text-xs text-blue-600 dark:text-blue-400"><i class="fas fa-calendar mr-1"></i>${formatDate(task.dueDate)}</p>` : ''}
-          <div class="flex gap-2 mt-3">
-            <button onclick="deleteTask('${task.id}')" class="text-xs text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>
+          <h4 class="font-medium text-slate-900 dark:text-white text-sm mb-1">${t.title}</h4>
+          ${t.description ? `<p class="text-xs text-slate-500 dark:text-slate-400 mb-2">${t.description}</p>` : ''}
+          ${t.dueDate ? `<p class="text-xs text-blue-600"><i class="fas fa-calendar mr-1"></i>${formatDate(t.dueDate)}</p>` : ''}
+          <div class="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onclick="deleteTask('${t.id}')" class="text-xs text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>
           </div>
         </div>
-      `).join('');
+      `).join('') || '';
     };
     
-    renderList(todoContainer, todoTasks);
-    renderList(progressContainer, inProgressTasks);
-    renderList(doneContainer, doneTasks);
+    const todoList = tasks.filter(t => t.status === 'todo');
+    const progressList = tasks.filter(t => t.status === 'in-progress');
+    const doneList = tasks.filter(t => t.status === 'done');
     
-    document.getElementById('todoCount').textContent = todoTasks.length;
-    document.getElementById('progressCount').textContent = inProgressTasks.length;
-    document.getElementById('doneCount').textContent = doneTasks.length;
-    document.getElementById('taskBadge').textContent = todoTasks.length + inProgressTasks.length;
+    render(todo, todoList);
+    render(progress, progressList);
+    render(done, doneList);
+    
+    document.getElementById('todoCount').textContent = todoList.length;
+    document.getElementById('progressCount').textContent = progressList.length;
+    document.getElementById('doneCount').textContent = doneList.length;
+    document.getElementById('taskBadge').textContent = todoList.length + progressList.length;
   };
   
-  window.deleteTask = (id) => {
-    tasks = tasks.filter(t => t.id !== id);
-    saveToStorage(STORAGE_KEYS.tasks, tasks);
-    renderTasks();
-    updateDashboardStats();
-  };
+  window.deleteTask = (id) => { tasks = tasks.filter(t => t.id !== id); saveToStorage(STORAGE_KEYS.tasks, tasks); renderTasks(); };
   
   const addTaskModal = () => {
-    openModal('Add New Task', `
+    openModal('Add Task', `
       <form id="taskForm" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Task Title</label>
-          <input type="text" id="taskTitle" required placeholder="What needs to be done?" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
-          <textarea id="taskDesc" rows="2" placeholder="Add details..." class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Status</label>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title</label>
+          <input type="text" id="taskTitle" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+          <textarea id="taskDesc" rows="2" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Status</label>
           <select id="taskStatus" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            <option value="todo">To Do</option>
-            <option value="in-progress">In Progress</option>
-            <option value="done">Done</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date</label>
-          <input type="date" id="taskDue" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-        </div>
-        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg">
-          <i class="fas fa-plus mr-2"></i>Add Task
-        </button>
+            <option value="todo">To Do</option><option value="in-progress">In Progress</option><option value="done">Done</option>
+          </select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date</label>
+          <input type="date" id="taskDue" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add Task</button>
       </form>
     `);
-    
     document.getElementById('taskForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      tasks.push({
-        id: generateId(),
-        title: document.getElementById('taskTitle').value,
-        description: document.getElementById('taskDesc').value,
-        status: document.getElementById('taskStatus').value,
-        dueDate: document.getElementById('taskDue').value,
-        createdAt: Date.now()
-      });
-      saveToStorage(STORAGE_KEYS.tasks, tasks);
-      renderTasks();
-      updateDashboardStats();
-      closeModal();
+      tasks.push({ id: generateId(), title: document.getElementById('taskTitle').value, description: document.getElementById('taskDesc').value, status: document.getElementById('taskStatus').value, dueDate: document.getElementById('taskDue').value, createdAt: Date.now() });
+      saveToStorage(STORAGE_KEYS.tasks, tasks); renderTasks(); updateStats(); closeModal();
     });
   };
-  
   document.getElementById('addTaskBtn')?.addEventListener('click', addTaskModal);
   
   // ========================================
@@ -740,99 +933,57 @@ if (document.getElementById('mainContent')) {
     if (!container) return;
     
     if (goals.length === 0) {
-      container.innerHTML = `
-        <div class="col-span-full text-center py-16 text-slate-400">
-          <i class="fas fa-bullseye text-5xl mb-4 opacity-50"></i>
-          <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No goals yet</h3>
-          <p class="mb-4">Set your first goal to start tracking progress</p>
-          <button onclick="addGoalModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            <i class="fas fa-plus mr-2"></i>Create Goal
-          </button>
-        </div>
-      `;
-    } else {
-      container.innerHTML = goals.map(goal => `
-        <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 group">
-          <div class="flex items-start justify-between mb-3">
-            <h4 class="font-semibold text-slate-900 dark:text-white">${goal.title}</h4>
-            <div class="flex items-center gap-2">
-              <span class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded-full">${goal.category}</span>
-              <button onclick="deleteGoal('${goal.id}')" class="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-all">
-                <i class="fas fa-trash text-xs"></i>
-              </button>
-            </div>
-          </div>
-          <p class="text-sm text-slate-500 dark:text-slate-400 mb-3">${goal.description || 'No description'}</p>
-          <div class="flex items-center gap-3 mb-2">
-            <div class="flex-1 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-              <div class="h-full gradient-bg rounded-full transition-all" style="width: ${goal.progress}%"></div>
-            </div>
-            <span class="text-sm font-medium text-slate-600 dark:text-slate-300">${goal.progress}%</span>
-          </div>
-          <p class="text-xs text-slate-400">${goal.deadline ? `Due: ${formatDate(goal.deadline)}` : 'No deadline'}</p>
-        </div>
-      `).join('');
+      container.innerHTML = `<div class="col-span-full text-center py-16 text-slate-400">
+        <i class="fas fa-bullseye text-5xl mb-4 opacity-50"></i>
+        <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No goals yet</h3>
+        <button onclick="addGoalModal()" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg"><i class="fas fa-plus mr-2"></i>Add Goal</button>
+      </div>`;
+      return;
     }
     
-    updateDashboardStats();
+    container.innerHTML = goals.map(g => `
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 group">
+        <div class="flex items-start justify-between mb-3">
+          <h4 class="font-semibold text-slate-900 dark:text-white">${g.title}</h4>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded-full">${g.category}</span>
+            <button onclick="deleteGoal('${g.id}')" class="opacity-0 group-hover:opacity-100 p-1 text-red-500"><i class="fas fa-trash text-xs"></i></button>
+          </div>
+        </div>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mb-3">${g.description || 'No description'}</p>
+        <div class="flex items-center gap-3 mb-2">
+          <div class="flex-1 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div class="h-full gradient-bg rounded-full" style="width: ${g.progress}%"></div>
+          </div>
+          <span class="text-sm font-medium text-slate-600 dark:text-slate-300">${g.progress}%</span>
+        </div>
+      </div>
+    `).join('');
   };
   
-  window.deleteGoal = (id) => {
-    goals = goals.filter(g => g.id !== id);
-    saveToStorage(STORAGE_KEYS.goals, goals);
-    renderGoals();
-  };
+  window.deleteGoal = (id) => { goals = goals.filter(g => g.id !== id); saveToStorage(STORAGE_KEYS.goals, goals); renderGoals(); };
   
   window.addGoalModal = () => {
-    openModal('Add New Goal', `
+    openModal('Add Goal', `
       <form id="goalForm" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Goal Title</label>
-          <input type="text" id="goalTitle" required placeholder="What do you want to achieve?" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title</label>
+          <input type="text" id="goalTitle" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
           <select id="goalCategory" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            <option value="personal">Personal</option>
-            <option value="career">Career</option>
-            <option value="health">Health</option>
-            <option value="finance">Finance</option>
-            <option value="education">Education</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
-          <textarea id="goalDesc" rows="2" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Target Date</label>
-          <input type="date" id="goalDeadline" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-        </div>
-        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg">
-          <i class="fas fa-plus mr-2"></i>Create Goal
-        </button>
+            <option value="personal">Personal</option><option value="career">Career</option><option value="health">Health</option><option value="finance">Finance</option>
+          </select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+          <textarea id="goalDesc" rows="2" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea></div>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add Goal</button>
       </form>
     `);
-    
     document.getElementById('goalForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      goals.push({
-        id: generateId(),
-        title: document.getElementById('goalTitle').value,
-        category: document.getElementById('goalCategory').value,
-        description: document.getElementById('goalDesc').value,
-        deadline: document.getElementById('goalDeadline').value,
-        progress: 0,
-        createdAt: Date.now()
-      });
-      saveToStorage(STORAGE_KEYS.goals, goals);
-      renderGoals();
-      closeModal();
+      goals.push({ id: generateId(), title: document.getElementById('goalTitle').value, category: document.getElementById('goalCategory').value, description: document.getElementById('goalDesc').value, progress: 0, createdAt: Date.now() });
+      saveToStorage(STORAGE_KEYS.goals, goals); renderGoals(); closeModal();
     });
   };
-  
   document.getElementById('addGoalBtn')?.addEventListener('click', addGoalModal);
-  document.getElementById('addFirstGoal')?.addEventListener('click', addGoalModal);
   
   // ========================================
   // Habits
@@ -842,206 +993,118 @@ if (document.getElementById('mainContent')) {
     if (!container) return;
     
     if (habits.length === 0) {
-      container.innerHTML = `
-        <div class="text-center py-16 text-slate-400">
-          <i class="fas fa-sync-alt text-5xl mb-4 opacity-50"></i>
-          <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No habits tracked</h3>
-          <p class="mb-4">Build better habits by tracking them daily</p>
-          <button onclick="addHabitModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            <i class="fas fa-plus mr-2"></i>Create Habit
-          </button>
-        </div>
-      `;
-    } else {
-      container.innerHTML = `<div class="space-y-3">${habits.map(habit => `
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 flex items-center gap-4 group">
-          <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: ${habit.color}20">
-            <i class="fas fa-check text-lg" style="color: ${habit.color}"></i>
-          </div>
-          <div class="flex-1">
-            <h4 class="font-medium text-slate-900 dark:text-white">${habit.name}</h4>
-            <p class="text-sm text-slate-500 dark:text-slate-400">${habit.frequency}</p>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="flex items-center gap-2 text-orange-500">
-              <i class="fas fa-fire"></i>
-              <span class="font-bold">${habit.streak || 0}</span>
-            </div>
-            <button onclick="deleteHabit('${habit.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all">
-              <i class="fas fa-trash text-xs"></i>
-            </button>
-          </div>
-        </div>
-      `).join('')}</div>`;
+      container.innerHTML = `<div class="text-center py-16 text-slate-400">
+        <i class="fas fa-sync-alt text-5xl mb-4 opacity-50"></i>
+        <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No habits tracked</h3>
+        <button onclick="addHabitModal()" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg"><i class="fas fa-plus mr-2"></i>Add Habit</button>
+      </div>`;
+      return;
     }
     
-    updateDashboardStats();
+    container.innerHTML = `<div class="space-y-3">${habits.map(h => `
+      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 flex items-center gap-4 group">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: ${h.color}20">
+          <i class="fas fa-check text-lg" style="color: ${h.color}"></i>
+        </div>
+        <div class="flex-1">
+          <h4 class="font-medium text-slate-900 dark:text-white">${h.name}</h4>
+          <p class="text-sm text-slate-500 dark:text-slate-400">${h.frequency}</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2 text-orange-500"><i class="fas fa-fire"></i><span class="font-bold">${h.streak || 0}</span></div>
+          <button onclick="deleteHabit('${h.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-500"><i class="fas fa-trash text-xs"></i></button>
+        </div>
+      </div>
+    `).join('')}</div>`;
   };
   
-  window.deleteHabit = (id) => {
-    habits = habits.filter(h => h.id !== id);
-    saveToStorage(STORAGE_KEYS.habits, habits);
-    renderHabits();
-  };
+  window.deleteHabit = (id) => { habits = habits.filter(h => h.id !== id); saveToStorage(STORAGE_KEYS.habits, habits); renderHabits(); };
   
   window.addHabitModal = () => {
-    openModal('Add New Habit', `
+    openModal('Add Habit', `
       <form id="habitForm" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Habit Name</label>
-          <input type="text" id="habitName" required placeholder="e.g., Exercise, Read, Meditate" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Frequency</label>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
+          <input type="text" id="habitName" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Frequency</label>
           <select id="habitFreq" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            <option value="Daily">Daily</option>
-            <option value="Weekdays">Weekdays</option>
-            <option value="Weekly">Weekly</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Color</label>
-          <input type="color" id="habitColor" value="#3b82f6" class="w-full h-10 rounded-lg cursor-pointer">
-        </div>
-        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg">
-          <i class="fas fa-plus mr-2"></i>Create Habit
-        </button>
+            <option value="Daily">Daily</option><option value="Weekdays">Weekdays</option><option value="Weekly">Weekly</option>
+          </select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Color</label>
+          <input type="color" id="habitColor" value="#3b82f6" class="w-full h-10 rounded-lg cursor-pointer"></div>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add Habit</button>
       </form>
     `);
-    
     document.getElementById('habitForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      habits.push({
-        id: generateId(),
-        name: document.getElementById('habitName').value,
-        frequency: document.getElementById('habitFreq').value,
-        color: document.getElementById('habitColor').value,
-        streak: 0,
-        completedDates: [],
-        createdAt: Date.now()
-      });
-      saveToStorage(STORAGE_KEYS.habits, habits);
-      renderHabits();
-      closeModal();
+      habits.push({ id: generateId(), name: document.getElementById('habitName').value, frequency: document.getElementById('habitFreq').value, color: document.getElementById('habitColor').value, streak: 0, createdAt: Date.now() });
+      saveToStorage(STORAGE_KEYS.habits, habits); renderHabits(); closeModal();
     });
   };
-  
   document.getElementById('addHabitBtn')?.addEventListener('click', addHabitModal);
-  document.getElementById('addFirstHabit')?.addEventListener('click', addHabitModal);
   
   // ========================================
-  // Finance (uses Life Log for purchases)
+  // Finance
   // ========================================
   const renderFinance = () => {
     const container = document.getElementById('transactionsContainer');
-    const transactions = finance.transactions || [];
+    const txns = finance.transactions || [];
     
-    const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const expenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    const income = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const expenses = txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
     
-    // Also count purchases from life log
-    const purchaseTotal = lifeLog.filter(e => e.type === 'purchase').reduce((sum, e) => sum + (e.data.amount || 0), 0);
-    
-    document.getElementById('totalIncome')?.textContent && (document.getElementById('totalIncome').textContent = formatCurrency(income));
-    document.getElementById('totalExpenses')?.textContent && (document.getElementById('totalExpenses').textContent = formatCurrency(expenses + purchaseTotal));
-    document.getElementById('totalBalance')?.textContent && (document.getElementById('totalBalance').textContent = formatCurrency(income - expenses - purchaseTotal));
+    document.getElementById('totalIncome').textContent = formatCurrency(income);
+    document.getElementById('totalExpenses').textContent = formatCurrency(expenses);
+    document.getElementById('totalBalance').textContent = formatCurrency(income - expenses);
     
     if (!container) return;
-    
-    if (transactions.length === 0) {
-      container.innerHTML = `
-        <div class="text-center py-8 text-slate-400">
-          <i class="fas fa-receipt text-3xl mb-2 opacity-50"></i>
-          <p class="text-sm">No transactions recorded</p>
-        </div>
-      `;
-    } else {
-      container.innerHTML = transactions.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10).map(t => `
-        <div class="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl mb-2 group">
-          <div class="w-10 h-10 ${t.type === 'income' ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'} rounded-lg flex items-center justify-center">
-            <i class="fas fa-arrow-${t.type === 'income' ? 'down' : 'up'}"></i>
-          </div>
-          <div class="flex-1">
-            <p class="font-medium text-slate-900 dark:text-white text-sm">${t.description}</p>
-            <p class="text-xs text-slate-500 dark:text-slate-400">${t.category} • ${formatDate(t.date)}</p>
-          </div>
-          <p class="font-bold ${t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">
-            ${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}
-          </p>
-          <button onclick="deleteTransaction('${t.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all">
-            <i class="fas fa-trash text-xs"></i>
-          </button>
-        </div>
-      `).join('');
+    if (txns.length === 0) {
+      container.innerHTML = `<div class="text-center py-8 text-slate-400"><i class="fas fa-receipt text-3xl mb-2 opacity-50"></i><p class="text-sm">No transactions</p></div>`;
+      return;
     }
     
-    updateDashboardStats();
+    container.innerHTML = txns.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10).map(t => `
+      <div class="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl mb-2 group">
+        <div class="w-10 h-10 ${t.type === 'income' ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : 'bg-red-100 dark:bg-red-900/30 text-red-600'} rounded-lg flex items-center justify-center">
+          <i class="fas fa-arrow-${t.type === 'income' ? 'down' : 'up'}"></i>
+        </div>
+        <div class="flex-1">
+          <p class="font-medium text-slate-900 dark:text-white text-sm">${t.description}</p>
+          <p class="text-xs text-slate-500">${t.category} · ${formatDateShort(t.date)}</p>
+        </div>
+        <p class="font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</p>
+        <button onclick="deleteTxn('${t.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400"><i class="fas fa-trash text-xs"></i></button>
+      </div>
+    `).join('');
   };
   
-  window.deleteTransaction = (id) => {
-    finance.transactions = finance.transactions.filter(t => t.id !== id);
-    saveToStorage(STORAGE_KEYS.finance, finance);
-    renderFinance();
-  };
+  window.deleteTxn = (id) => { finance.transactions = finance.transactions.filter(t => t.id !== id); saveToStorage(STORAGE_KEYS.finance, finance); renderFinance(); };
   
-  const addTransactionModal = () => {
+  document.getElementById('addTransactionBtn')?.addEventListener('click', () => {
     openModal('Add Transaction', `
-      <form id="transForm" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
-          <select id="transType" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            <option value="expense">Expense</option>
-            <option value="income">Income</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
-          <input type="text" id="transDesc" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Amount</label>
-          <input type="number" id="transAmount" required min="0" step="0.01" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
-          <select id="transCat" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            <option value="Food">Food & Dining</option>
-            <option value="Transport">Transportation</option>
-            <option value="Utilities">Utilities</option>
-            <option value="Entertainment">Entertainment</option>
-            <option value="Shopping">Shopping</option>
-            <option value="Salary">Salary</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
-          <input type="date" id="transDate" value="${new Date().toISOString().split('T')[0]}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-        </div>
-        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg">
-          <i class="fas fa-plus mr-2"></i>Add Transaction
-        </button>
+      <form id="txnForm" class="space-y-4">
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
+          <select id="txnType" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <option value="expense">Expense</option><option value="income">Income</option>
+          </select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+          <input type="text" id="txnDesc" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Amount</label>
+          <input type="number" id="txnAmount" required min="0" step="0.01" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
+          <select id="txnCat" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <option>Food</option><option>Transport</option><option>Entertainment</option><option>Shopping</option><option>Salary</option><option>Other</option>
+          </select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
+          <input type="date" id="txnDate" value="${new Date().toISOString().split('T')[0]}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add</button>
       </form>
     `);
-    
-    document.getElementById('transForm').addEventListener('submit', (e) => {
+    document.getElementById('txnForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      finance.transactions.push({
-        id: generateId(),
-        type: document.getElementById('transType').value,
-        description: document.getElementById('transDesc').value,
-        amount: parseFloat(document.getElementById('transAmount').value),
-        category: document.getElementById('transCat').value,
-        date: document.getElementById('transDate').value,
-        createdAt: Date.now()
-      });
-      saveToStorage(STORAGE_KEYS.finance, finance);
-      renderFinance();
-      closeModal();
+      finance.transactions.push({ id: generateId(), type: document.getElementById('txnType').value, description: document.getElementById('txnDesc').value, amount: parseFloat(document.getElementById('txnAmount').value), category: document.getElementById('txnCat').value, date: document.getElementById('txnDate').value, createdAt: Date.now() });
+      saveToStorage(STORAGE_KEYS.finance, finance); renderFinance(); closeModal();
     });
-  };
-  
-  document.getElementById('addTransactionBtn')?.addEventListener('click', addTransactionModal);
+  });
   
   // ========================================
   // Journal
@@ -1051,101 +1114,64 @@ if (document.getElementById('mainContent')) {
     if (!container) return;
     
     if (journal.length === 0) {
-      container.innerHTML = `
-        <div class="text-center py-16 text-slate-400">
-          <i class="fas fa-book-open text-5xl mb-4 opacity-50"></i>
-          <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No journal entries</h3>
-          <p class="mb-4">Start writing to capture your thoughts</p>
-          <button onclick="addJournalModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            <i class="fas fa-pen mr-2"></i>Start Writing
-          </button>
-        </div>
-      `;
-    } else {
-      container.innerHTML = `<div class="grid gap-4">${journal.sort((a, b) => new Date(b.date) - new Date(a.date)).map(entry => `
-        <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 group">
-          <div class="flex items-start justify-between mb-3">
-            <h4 class="font-semibold text-slate-900 dark:text-white">${entry.title}</h4>
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-slate-500 dark:text-slate-400">${formatDate(entry.date)}</span>
-              <button onclick="deleteJournalEntry('${entry.id}')" class="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-all">
-                <i class="fas fa-trash text-xs"></i>
-              </button>
-            </div>
-          </div>
-          <p class="text-sm text-slate-600 dark:text-slate-400 line-clamp-3">${entry.content || 'No content'}</p>
-        </div>
-      `).join('')}</div>`;
+      container.innerHTML = `<div class="text-center py-16 text-slate-400">
+        <i class="fas fa-book-open text-5xl mb-4 opacity-50"></i>
+        <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No journal entries</h3>
+        <button onclick="addJournalModal()" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg"><i class="fas fa-pen mr-2"></i>Start Writing</button>
+      </div>`;
+      return;
     }
+    
+    container.innerHTML = `<div class="grid gap-4">${journal.sort((a, b) => new Date(b.date) - new Date(a.date)).map(j => `
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 group">
+        <div class="flex items-start justify-between mb-3">
+          <h4 class="font-semibold text-slate-900 dark:text-white">${j.title}</h4>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-500">${formatDate(j.date)}</span>
+            <button onclick="deleteJournal('${j.id}')" class="opacity-0 group-hover:opacity-100 p-1 text-red-500"><i class="fas fa-trash text-xs"></i></button>
+          </div>
+        </div>
+        <p class="text-sm text-slate-600 dark:text-slate-400 line-clamp-3">${j.content || ''}</p>
+      </div>
+    `).join('')}</div>`;
   };
   
-  window.deleteJournalEntry = (id) => {
-    journal = journal.filter(j => j.id !== id);
-    saveToStorage(STORAGE_KEYS.journal, journal);
-    renderJournal();
-  };
+  window.deleteJournal = (id) => { journal = journal.filter(j => j.id !== id); saveToStorage(STORAGE_KEYS.journal, journal); renderJournal(); };
   
   window.addJournalModal = () => {
     openModal('New Journal Entry', `
       <form id="journalForm" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title</label>
-          <input type="text" id="journalTitle" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
-          <input type="date" id="journalDate" value="${new Date().toISOString().split('T')[0]}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Content</label>
-          <textarea id="journalContent" rows="6" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea>
-        </div>
-        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg">
-          <i class="fas fa-save mr-2"></i>Save Entry
-        </button>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title</label>
+          <input type="text" id="journalTitle" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
+          <input type="date" id="journalDate" value="${new Date().toISOString().split('T')[0]}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Content</label>
+          <textarea id="journalContent" rows="6" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea></div>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-save mr-2"></i>Save</button>
       </form>
     `);
-    
     document.getElementById('journalForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      journal.push({
-        id: generateId(),
-        title: document.getElementById('journalTitle').value,
-        date: document.getElementById('journalDate').value,
-        content: document.getElementById('journalContent').value,
-        createdAt: Date.now()
-      });
-      saveToStorage(STORAGE_KEYS.journal, journal);
-      renderJournal();
-      closeModal();
+      journal.push({ id: generateId(), title: document.getElementById('journalTitle').value, date: document.getElementById('journalDate').value, content: document.getElementById('journalContent').value, createdAt: Date.now() });
+      saveToStorage(STORAGE_KEYS.journal, journal); renderJournal(); closeModal();
     });
   };
-  
   document.getElementById('addJournalBtn')?.addEventListener('click', addJournalModal);
-  document.getElementById('startWriting')?.addEventListener('click', addJournalModal);
   
   // ========================================
-  // Event & Health Buttons (use Life Log)
+  // Stats
   // ========================================
-  document.getElementById('addEventBtn')?.addEventListener('click', () => openLifeLogModal('event'));
-  document.getElementById('addHealthBtn')?.addEventListener('click', () => openLifeLogModal('health'));
-  
-  // ========================================
-  // Dashboard Stats
-  // ========================================
-  const updateDashboardStats = () => {
+  const updateStats = () => {
     const activeTasks = tasks.filter(t => t.status !== 'done').length;
-    const avgGoalProgress = goals.length > 0 ? Math.round(goals.reduce((sum, g) => sum + g.progress, 0) / goals.length) : 0;
-    const maxStreak = habits.length > 0 ? Math.max(...habits.map(h => h.streak || 0)) : 0;
-    
-    const transactions = finance.transactions || [];
-    const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const expenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    const avgGoals = goals.length ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length) : 0;
+    const maxStreak = habits.length ? Math.max(...habits.map(h => h.streak || 0)) : 0;
+    const txns = finance.transactions || [];
+    const balance = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0) - txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
     
     document.getElementById('statTasks')?.textContent && (document.getElementById('statTasks').textContent = activeTasks);
-    document.getElementById('statGoals')?.textContent && (document.getElementById('statGoals').textContent = avgGoalProgress + '%');
+    document.getElementById('statGoals')?.textContent && (document.getElementById('statGoals').textContent = avgGoals + '%');
     document.getElementById('statStreak')?.textContent && (document.getElementById('statStreak').textContent = maxStreak);
-    document.getElementById('statBalance')?.textContent && (document.getElementById('statBalance').textContent = formatCurrency(income - expenses));
+    document.getElementById('statBalance')?.textContent && (document.getElementById('statBalance').textContent = formatCurrency(balance));
     document.getElementById('statLifeLog')?.textContent && (document.getElementById('statLifeLog').textContent = lifeLog.length);
   };
   
@@ -1153,25 +1179,34 @@ if (document.getElementById('mainContent')) {
   // Settings
   // ========================================
   document.getElementById('exportData')?.addEventListener('click', () => {
-    const data = { tasks, goals, habits, finance, health, journal, events, lifeLog, activityTypes, exportedAt: Date.now() };
+    const data = { tasks, goals, habits, finance, journal, lifeLog, exportedAt: Date.now() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `life-erp-backup-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `life-erp-${new Date().toISOString().split('T')[0]}.json`; a.click();
     URL.revokeObjectURL(url);
   });
   
   document.getElementById('clearData')?.addEventListener('click', () => {
-    if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
-      Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
-      tasks = []; goals = []; habits = []; finance = { transactions: [] }; health = { entries: [], workouts: [] }; journal = []; events = []; lifeLog = [];
-      renderTasks(); renderGoals(); renderHabits(); renderFinance(); renderCalendar(); renderJournal(); renderLifeLog();
-      updateDashboardStats();
-      alert('All data has been cleared.');
+    if (confirm('Clear all data? This cannot be undone.')) {
+      Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
+      tasks = []; goals = []; habits = []; finance = { transactions: [] }; journal = []; lifeLog = [];
+      renderTasks(); renderGoals(); renderHabits(); renderFinance(); renderJournal(); renderCalendar(); renderDayDetail();
+      updateStats(); alert('All data cleared.');
     }
   });
+  
+  // ========================================
+  // Quick Log Buttons & Section Buttons
+  // ========================================
+  document.querySelectorAll('[data-log-type]').forEach(btn => {
+    btn.addEventListener('click', () => openLogModal(btn.dataset.logType));
+  });
+  
+  // Health section button
+  document.getElementById('addHealthBtn')?.addEventListener('click', () => openLogModal('health'));
+  
+  // Alias for backwards compatibility
+  window.openLifeLogModal = openLogModal;
   
   // ========================================
   // Initialize
@@ -1180,11 +1215,8 @@ if (document.getElementById('mainContent')) {
   renderGoals();
   renderHabits();
   renderFinance();
-  renderCalendar();
   renderJournal();
-  renderLifeLog();
-  updateDashboardStats();
-  
-  // Select today by default
-  selectCalendarDate(new Date().toISOString().split('T')[0]);
+  renderCalendar();
+  renderDayDetail();
+  updateStats();
 }
