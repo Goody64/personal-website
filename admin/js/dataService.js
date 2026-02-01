@@ -90,7 +90,8 @@ const dataService = {
 
   async signUp(email, password) {
     if (!this._supabase) return { error: new Error('Supabase not configured') };
-    const { data, error } = await this._supabase.auth.signUp({ email, password });
+    const redirectTo = typeof window !== 'undefined' ? (window.location.href.replace(/[^/]*$/, '') + 'dashboard.html') : undefined;
+    const { data, error } = await this._supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } });
     if (!error) this._useCloud = true;
     return { data, error };
   },

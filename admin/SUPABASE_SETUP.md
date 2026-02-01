@@ -65,13 +65,15 @@ The deploy workflow injects config from GitHub Secrets. Add these in your repo:
 
 The deploy workflow will add `SUPABASE_CONFIG` to the generated `admin-config.js` when both secrets exist. If either is missing, cloud sync is disabled (localStorage only).
 
-## 5. Enable Auth (if needed)
+## 5. Disable email confirmation (recommended)
 
-Supabase Auth is enabled by default. For email/password:
+Supabase requires email confirmation by default, which sends links to localhost. Disable it for instant sign-up:
 
-1. Go to **Authentication** → **Providers**
-2. **Email** should be enabled
-3. (Optional) Disable "Confirm email" in **Auth** → **Email Templates** if you want instant sign-up without verification
+1. Go to **Authentication** → **Providers** → **Email**
+2. Turn off **Confirm email**
+3. Save
+
+You can sign in immediately after signing up. (To use confirmation instead, configure **Authentication** → **URL Configuration** with your production Site URL and Redirect URLs.)
 
 ## Done
 
