@@ -1,0 +1,51 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create admin config from secrets
+        env:
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            fs.writeFileSync('admin/js/admin-config.js',
+              'const AUTH_CONFIG = ' + JSON.stringify({
+                username: process.env.ADMIN_USERNAME,
+                password: process.env.ADMIN_PASSWORD,
+                sessionKey: 'lifeErp_session',
+                sessionDuration: 24 * 60 * 60 * 1000
+              }, null, 2) + ';'
+            );
+          "
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
