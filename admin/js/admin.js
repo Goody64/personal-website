@@ -20,21 +20,21 @@ const ACTIVITY_TYPES = {
       { key: 'show', label: 'Show Name', type: 'text', required: true },
       { key: 'season', label: 'Season', type: 'number' },
       { key: 'episode', label: 'Episode', type: 'number' },
-      { key: 'repeat', label: 'Rewatch', type: 'checkbox' },
+      { key: 'repeat', label: 'Rewatch # (0=first, 1+=which rewatch)', type: 'number' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
   movie: { name: 'Movie', icon: 'fa-film', color: '#ec4899', plural: 'movies',
     fields: [
       { key: 'title', label: 'Movie Title', type: 'text', required: true },
       { key: 'rating', label: 'Rating (1-10)', type: 'number' },
-      { key: 'repeat', label: 'Rewatch', type: 'checkbox' },
+      { key: 'repeat', label: 'Rewatch # (0=first, 1+=which rewatch)', type: 'number' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
   game: { name: 'Gaming', icon: 'fa-gamepad', color: '#22c55e', plural: 'sessions',
     fields: [
       { key: 'game', label: 'Game', type: 'text', required: true },
       { key: 'duration', label: 'Duration (min)', type: 'number' },
-      { key: 'repeat', label: 'Replay', type: 'checkbox' },
+      { key: 'repeat', label: 'Replay # (0=first, 1+=which replay)', type: 'number' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
   golf: { name: 'Golf', icon: 'fa-golf-ball', color: '#10b981', plural: 'rounds',
@@ -86,7 +86,7 @@ const ACTIVITY_TYPES = {
       { key: 'title', label: 'Book Title', type: 'text', required: true },
       { key: 'pages', label: 'Pages Read', type: 'number' },
       { key: 'finished', label: 'Finished Book', type: 'checkbox' },
-      { key: 'repeat', label: 'Re-read', type: 'checkbox' },
+      { key: 'repeat', label: 'Re-read # (0=first, 1+=which re-read)', type: 'number' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
   social: { name: 'Social', icon: 'fa-users', color: '#0ea5e9', plural: 'hangouts',
@@ -160,6 +160,14 @@ const formatDateShort = (date) => {
 };
 const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 const parseAmount = (val) => Math.round((parseFloat(val) || 0) * 100) / 100;
+// repeat: supports old boolean (true=1) and new numeric counter
+const getRepeatCount = (e) => e.data?.repeat === true ? 1 : Math.max(0, parseInt(e.data?.repeat, 10) || 0);
+const getRepeatLabel = (count, type) => {
+  if (!count || count < 1) return '';
+  const base = { tv: 'rewatch', game: 'replay', movie: 'rewatch', book: 're-read' }[type] || 'repeat';
+  const ord = count === 1 ? '1st' : count === 2 ? '2nd' : count === 3 ? '3rd' : `${count}th`;
+  return `${ord} ${base}`;
+};
 
 const getFromStorage = (key) => {
   try { return JSON.parse(localStorage.getItem(key)); } 
@@ -381,7 +389,7 @@ if (document.getElementById('mainContent')) {
           count: count,
           entries: rangeEntries,
           hasNotes: rangeEntries.some(e => e.data.notes),
-          rewatchCount: rangeEntries.filter(e => e.data.repeat).length
+          rewatchCount: rangeEntries.filter(e => getRepeatCount(e) > 0).length
         });
       });
     });
@@ -539,7 +547,7 @@ if (document.getElementById('mainContent')) {
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="font-medium text-slate-900 dark:text-white">${g.show}</p>
-                  <p class="text-sm text-slate-500 dark:text-slate-400">${g.season} ${g.episodeRange} · ${g.count} episode${g.count > 1 ? 's' : ''}${g.rewatchCount ? ` · <span class="text-amber-600 dark:text-amber-400">${g.rewatchCount} rewatch</span>` : ''}${g.hasNotes ? ' · <i class="fas fa-sticky-note text-xs"></i>' : ''}</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">${g.season} ${g.episodeRange} · ${g.count} episode${g.count > 1 ? 's' : ''}${g.rewatchCount ? ` · <span class="text-amber-600 dark:text-amber-400">${g.rewatchCount} rewatch${g.rewatchCount !== 1 ? 'es' : ''}</span>` : ''}${g.hasNotes ? ' · <i class="fas fa-sticky-note text-xs"></i>' : ''}</p>
                 </div>
                 <i class="fas fa-chevron-right text-slate-400 text-sm flex-shrink-0"></i>
               </div>
@@ -620,7 +628,8 @@ if (document.getElementById('mainContent')) {
       let detail = '';
       if (type === 'tv') detail = `S${e.data.season || 1} E${e.data.episode || 1}`;
       else detail = t.fields.slice(1).filter(f => f.key !== 'repeat').map(f => e.data[f.key]).filter(Boolean).join(' · ');
-      const repeatBadge = e.data.repeat && repeatLabel ? ` <span class="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">${repeatLabel}</span>` : '';
+      const rc = getRepeatCount(e);
+      const repeatBadge = rc > 0 && repeatLabel ? ` <span class="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">${getRepeatLabel(rc, type)}</span>` : '';
       
       html += `
         <div class="flex items-start justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg group">
@@ -658,7 +667,7 @@ if (document.getElementById('mainContent')) {
         ${details.length ? `<div class="space-y-2">${details.map(d => `
           <div><span class="text-xs text-slate-500 dark:text-slate-400">${d.label}</span><p class="text-sm text-slate-900 dark:text-white">${String(d.value).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>
         `).join('')}</div>` : ''}
-        ${e.data.repeat && repeatLabel ? `<div><span class="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm rounded-lg"><i class="fas fa-redo text-xs"></i>${repeatLabel}</span></div>` : ''}
+        ${getRepeatCount(e) > 0 ? `<div><span class="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm rounded-lg"><i class="fas fa-redo text-xs"></i>${getRepeatLabel(getRepeatCount(e), e.type)}</span></div>` : ''}
         ${e.data.notes ? `<div><span class="text-xs text-slate-500 dark:text-slate-400">Notes</span><p class="text-sm text-slate-700 dark:text-slate-300 mt-1 whitespace-pre-wrap">${String(e.data.notes).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>` : ''}
         ${e.data.content ? `<div><span class="text-xs text-slate-500 dark:text-slate-400">Content</span><p class="text-sm text-slate-700 dark:text-slate-300 mt-1 whitespace-pre-wrap">${String(e.data.content).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>` : ''}
         <div class="flex gap-2 pt-2">
@@ -717,7 +726,9 @@ if (document.getElementById('mainContent')) {
           return `<div class="flex items-center gap-2"><input type="checkbox" id="field_${f.key}" class="w-4 h-4 rounded"${defaultChecked}>
             <label class="text-sm font-medium text-slate-700 dark:text-slate-300">${f.label}</label></div>`;
         } else {
-          const stepMin = f.key === 'amount' ? ' min="0" step="0.01"' : '';
+          let stepMin = '';
+          if (f.key === 'amount') stepMin = ' min="0" step="0.01"';
+          else if (f.key === 'repeat') stepMin = ' min="0" step="1"';
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
             <input type="${f.type}" id="field_${f.key}" ${f.required ? 'required' : ''}${stepMin} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>`;
         }
@@ -745,7 +756,7 @@ if (document.getElementById('mainContent')) {
       const data = {};
       t.fields.forEach(f => {
         const el = document.getElementById(`field_${f.key}`);
-        if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? (f.key === 'amount' ? parseAmount(el.value) : parseFloat(el.value) || 0) : el.value);
+        if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? (f.key === 'amount' ? parseAmount(el.value) : f.key === 'repeat' ? Math.max(0, parseInt(el.value, 10) || 0) : parseFloat(el.value) || 0) : el.value);
       });
       
       const date = document.getElementById('logDate').value;
@@ -833,7 +844,7 @@ if (document.getElementById('mainContent')) {
       const data = entry.data;
       document.getElementById('editDynamicFields').innerHTML = t.fields.map(f => {
         const val = data[f.key];
-        const valStr = val === undefined || val === null ? '' : String(val);
+        const valStr = f.key === 'repeat' ? String(getRepeatCount(entry)) : (val === undefined || val === null ? '' : String(val));
         if (f.type === 'select') {
           let opts = f.options;
           if (type === 'work' && f.key === 'subtype') opts = WORK_SUBTYPES[data.category] || WORK_SUBTYPES.Job;
@@ -848,7 +859,9 @@ if (document.getElementById('mainContent')) {
           return `<div class="flex items-center gap-2"><input type="checkbox" id="edit_field_${f.key}" ${val ? 'checked' : ''} class="w-4 h-4 rounded">
             <label class="text-sm font-medium text-slate-700 dark:text-slate-300">${f.label}</label></div>`;
         } else {
-          const stepMin = f.key === 'amount' ? ' min="0" step="0.01"' : '';
+          let stepMin = '';
+          if (f.key === 'amount') stepMin = ' min="0" step="0.01"';
+          else if (f.key === 'repeat') stepMin = ' min="0" step="1"';
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
             <input type="${f.type}" id="edit_field_${f.key}" ${f.required ? 'required' : ''}${stepMin} value="${valStr.replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>`;
         }
@@ -882,7 +895,7 @@ if (document.getElementById('mainContent')) {
       const data = {};
       t.fields.forEach(f => {
         const el = document.getElementById(`edit_field_${f.key}`);
-        if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? (f.key === 'amount' ? parseAmount(el.value) : parseFloat(el.value) || 0) : el.value);
+        if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? (f.key === 'amount' ? parseAmount(el.value) : f.key === 'repeat' ? Math.max(0, parseInt(el.value, 10) || 0) : parseFloat(el.value) || 0) : el.value);
       });
       
       const date = document.getElementById('editLogDate').value;
@@ -982,14 +995,15 @@ if (document.getElementById('mainContent')) {
     filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
     const thisYear = new Date().getFullYear();
     const thisYearCount = filtered.filter(e => e.date.startsWith(String(thisYear))).length;
-    const repeatCount = filtered.filter(e => e.data.repeat).length;
+    const repeatCount = filtered.filter(e => getRepeatCount(e) > 0).length;
     const repeatLabelSingular = { tv: 'rewatch', game: 'replay', movie: 'rewatch', book: 're-read' };
     const repeatLabelPlural = { tv: 'rewatches', game: 'replays', movie: 'rewatches', book: 're-reads' };
     const entriesHtml = filtered.map(e => {
       const mainField = t?.fields[0]?.key;
       const mainValue = (e.data[mainField] || 'Entry').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const details = t?.fields.slice(1, 5).filter(f => f.key !== 'repeat').map(f => e.data[f.key]).filter(Boolean).join(' · ');
-      const repeatBadge = e.data.repeat && repeatLabelSingular[type] ? ` <span class="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">${repeatLabelSingular[type]}</span>` : '';
+      const rc = getRepeatCount(e);
+      const repeatBadge = rc > 0 ? ` <span class="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">${getRepeatLabel(rc, type)}</span>` : '';
       return `<div onclick="showEntryDetail('${e.id}')" class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
         <div class="flex-1 min-w-0">
           <p class="font-medium text-slate-900 dark:text-white">${mainValue}${repeatBadge}</p>
@@ -1071,7 +1085,7 @@ if (document.getElementById('mainContent')) {
         }).join(', ');
         
         const showEsc = (show || '').replace(/'/g, "\\'");
-        const rewatchCount = Object.values(data.seasons).flat().filter(e => e.data.repeat).length;
+        const rewatchCount = Object.values(data.seasons).flat().filter(e => getRepeatCount(e) > 0).length;
         const rewatchStr = rewatchCount > 0 ? ` · ${rewatchCount} rewatch${rewatchCount !== 1 ? 'es' : ''}` : '';
         html += `
           <div onclick="showLibraryDetail('tv', '${showEsc}', '${show}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
@@ -1109,7 +1123,7 @@ if (document.getElementById('mainContent')) {
       sorted.forEach(([game, data]) => {
         const hours = Math.round(data.totalTime / 60 * 10) / 10;
         const gameEsc = (game || '').replace(/'/g, "\\'");
-        const replayCount = data.entries.filter(e => e.data.repeat).length;
+        const replayCount = data.entries.filter(e => getRepeatCount(e) > 0).length;
         const replayStr = replayCount > 0 ? ` · ${replayCount} replay${replayCount !== 1 ? 's' : ''}` : '';
         html += `
           <div onclick="showLibraryDetail('game', '${gameEsc}', '${game}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
@@ -1146,7 +1160,7 @@ if (document.getElementById('mainContent')) {
       html = `<div class="space-y-4">`;
       sorted.forEach(([title, data]) => {
         const titleEsc = (title || '').replace(/'/g, "\\'");
-        const rereadCount = (data.entries || []).filter(e => e.data.repeat).length;
+        const rereadCount = (data.entries || []).filter(e => getRepeatCount(e) > 0).length;
         const rereadStr = rereadCount > 0 ? ` · ${rereadCount} re-read${rereadCount !== 1 ? 's' : ''}` : '';
         html += `
           <div onclick="showLibraryDetail('book', '${titleEsc}', '${title}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
@@ -1286,7 +1300,8 @@ if (document.getElementById('mainContent')) {
       const sorted = entries.sort((a, b) => new Date(b.date) - new Date(a.date));
       html = `<div class="space-y-4">`;
       sorted.forEach(e => {
-        const rewatchBadge = e.data.repeat ? '<span class="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded ml-2">rewatch</span>' : '';
+        const rc = getRepeatCount(e);
+        const rewatchBadge = rc > 0 ? `<span class="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded ml-2">${getRepeatLabel(rc, 'movie')}</span>` : '';
         html += `
           <div onclick="showEntryDetail('${e.id}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
             <div class="flex items-center gap-4">
