@@ -220,43 +220,65 @@ const authenticate = (u, p) => {
 };
 
 // ========================================
-// Login Page
+// Login Page (Supabase-only when configured)
 // ========================================
 if (document.getElementById('loginForm')) {
-  const loginForm = document.getElementById('loginForm');
-  
-  if (!getAuthConfig()) {
-    loginForm.innerHTML = `<div class="p-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-200">
-      <h3 class="font-semibold mb-2"><i class="fas fa-exclamation-triangle mr-2"></i>Admin Not Configured</h3>
-      <p class="text-sm">Create admin-config.js from the example file.</p></div>`;
-  } else if (checkSession()) {
-    window.location.href = 'dashboard.html';
-  } else {
-    document.getElementById('togglePassword')?.addEventListener('click', function() {
-      const pw = document.getElementById('password');
-      pw.type = pw.type === 'password' ? 'text' : 'password';
-      this.innerHTML = `<i class="fas fa-eye${pw.type === 'password' ? '' : '-slash'}"></i>`;
-    });
+  (async () => {
+    const config = typeof SUPABASE_CONFIG !== 'undefined' ? SUPABASE_CONFIG : null;
+    const configured = config?.url && config?.anonKey && !config.url.includes('YOUR_') && !config.anonKey.includes('YOUR_');
     
-    loginForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (authenticate(document.getElementById('username').value, document.getElementById('password').value)) {
+    if (configured && typeof supabase !== 'undefined') {
+      await (window.dataService?.init?.() ?? Promise.resolve());
+      const session = await window.dataService?.getSession?.();
+      if (session) {
         window.location.href = 'dashboard.html';
-      } else {
-        const err = document.getElementById('loginError');
-        err.classList.remove('hidden');
-        setTimeout(() => err.classList.add('hidden'), 3000);
+        return;
       }
-    });
-  }
+      document.getElementById('supabaseLoginForm')?.classList.remove('hidden');
+      
+      document.getElementById('togglePassword')?.addEventListener('click', function() {
+        const pw = document.getElementById('loginPassword');
+        pw.type = pw.type === 'password' ? 'text' : 'password';
+        this.innerHTML = `<i class="fas fa-eye${pw.type === 'password' ? '' : '-slash'}"></i>`;
+      });
+      
+      document.getElementById('supabaseLoginForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const err = document.getElementById('loginError');
+        const { error } = await window.dataService.signIn(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
+        if (error) { err.textContent = error.message; err.classList.remove('hidden'); }
+        else window.location.href = 'dashboard.html';
+      });
+      
+      document.getElementById('signUpBtn')?.addEventListener('click', async () => {
+        const err = document.getElementById('loginError');
+        const { error } = await window.dataService.signUp(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
+        if (error) { err.textContent = error.message; err.classList.remove('hidden'); }
+        else window.location.href = 'dashboard.html';
+      });
+    } else {
+      document.getElementById('directAccess')?.classList.remove('hidden');
+    }
+  })();
 }
 
 // ========================================
 // Dashboard
 // ========================================
 if (document.getElementById('mainContent')) {
-  if (!checkSession()) { window.location.href = 'index.html'; } else {
   (async () => {
+  const config = typeof SUPABASE_CONFIG !== 'undefined' ? SUPABASE_CONFIG : null;
+  const supabaseConfigured = config?.url && config?.anonKey && !config.url.includes('YOUR_') && !config.anonKey.includes('YOUR_');
+  
+  if (supabaseConfigured && typeof supabase !== 'undefined') {
+    await (window.dataService?.init?.() ?? Promise.resolve());
+    const session = await window.dataService?.getSession?.();
+    if (!session) {
+      window.location.href = 'index.html';
+      return;
+    }
+  }
+  
   let data = null;
   try {
     await (window.dataService?.init?.() ?? Promise.resolve());
@@ -323,7 +345,11 @@ if (document.getElementById('mainContent')) {
   window.addEventListener('hashchange', () => { const h = window.location.hash.slice(1); if (h && document.getElementById(h)) showSection(h); });
   
   // Logout
-  const handleLogout = () => { clearSession(); window.location.href = 'index.html'; };
+  const handleLogout = async () => {
+    await (window.dataService?.signOut?.() ?? Promise.resolve());
+    clearSession();
+    window.location.href = 'index.html';
+  };
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.getElementById('logoutSettings')?.addEventListener('click', handleLogout);
   
@@ -1852,5 +1878,4 @@ if (document.getElementById('mainContent')) {
     renderCloudUI();
   }
   })();
-  }
 }

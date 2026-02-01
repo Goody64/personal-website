@@ -170,6 +170,76 @@ function getDefault(domain) {
 
 ---
 
+## Scaling for Production / Marketing
+
+If you want to roll out Life ERP to many users, these changes will be needed:
+
+### 1. Auth Model
+
+**Current:** Admin gate (single shared password) → then optional Supabase sign-in for cloud sync.
+
+**For multi-tenant product:** Remove the admin gate. Users sign in with Supabase Auth directly. The dashboard becomes the main app after login. Add a landing page, sign-up flow, and redirect unauthenticated users to login.
+
+### 2. Per-Event Storage (instead of blob-per-domain)
+
+**Current:** One JSON blob per domain. Load everything, modify, save everything.
+
+**At scale:** Store each entry as its own row. Faster reads, smaller writes, supports pagination.
+
+```sql
+-- life_log: one row per entry
+CREATE TABLE life_log (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  date DATE NOT NULL,
+  data JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_life_log_user_date ON life_log(user_id, date);
+
+-- Similar: finance_transactions, journal_entries, tasks, goals, habits
+```
+
+**Benefits:** Query "entries for Jan 2025" with `WHERE date BETWEEN ...` instead of loading 50k entries. Insert/update/delete single rows. No blob size limits.
+
+### 3. Pagination & Lazy Loading
+
+**Current:** Load entire dataset on app init.
+
+**At scale:**
+- **Calendar:** Load only entries for visible month(s). `SELECT * FROM life_log WHERE user_id = ? AND date BETWEEN ? AND ?`
+- **Library:** Aggregate in SQL. `SELECT type, data->>'show' as show, COUNT(*) FROM life_log WHERE user_id = ? GROUP BY ...`
+- **Finance:** Load transactions for current view, paginate history.
+- **Infinite scroll** or "Load more" for long lists.
+
+### 4. Infrastructure & Cost
+
+| Users | Supabase tier | Notes |
+|-------|---------------|-------|
+| &lt; 500 | Free | 500MB DB, 50K monthly active users |
+| 500–10K | Pro ($25/mo) | 8GB DB, more API requests |
+| 10K+ | Team/Enterprise | Dedicated resources, SLA |
+
+**Other:** Rate limiting, backups, monitoring, CDN for static assets.
+
+### 5. Product Considerations
+
+- **Landing page** – Value prop, screenshots, sign-up CTA
+- **Onboarding** – First-time user flow, sample data
+- **Billing** – Stripe if monetizing (free tier + paid plans)
+- **Legal** – Terms of service, privacy policy, GDPR if EU users
+- **Mobile** – PWA or Capacitor wrap for app store
+
+### Migration Path (blob → per-event)
+
+1. Add new per-event tables alongside `user_data`
+2. Migrate: Read blob, insert each entry into new table
+3. Update `dataService` to use new tables (get by date range, insert/update/delete single rows)
+4. Deprecate blob reads; eventually remove `user_data` for lifeLog/finance/journal
+
+---
+
 ## TL;DR – Schema-Flexible Path
 
 1. **DB**: One table `user_data(user_id, domain, data JSONB)`. Store each domain (lifeLog, finance, etc.) as a blob.
