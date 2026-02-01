@@ -1768,9 +1768,15 @@ if (document.getElementById('mainContent')) {
       el.innerHTML = `
         <p class="text-slate-600 dark:text-slate-300"><i class="fas fa-cloud mr-2"></i>Supabase configured</p>
         <p class="text-amber-600 dark:text-amber-400 mt-2">Not signed in – using local storage</p>
-        <p class="text-slate-500 dark:text-slate-400 text-xs mt-1">Click "Sign in to sync" in the header to enable cloud sync.</p>
+        <p class="text-slate-500 dark:text-slate-400 text-xs mt-1">Sign in below to sync your data across devices.</p>
         <p class="text-slate-500 dark:text-slate-400 mt-2"><strong>Storage:</strong> Local only</p>
+        <button id="settingsSignInBtn" class="mt-4 w-full py-2.5 gradient-bg text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity">
+          <i class="fas fa-cloud-upload-alt mr-2"></i>Sign in to sync
+        </button>
       `;
+      el.querySelector('#settingsSignInBtn')?.addEventListener('click', () => {
+        document.getElementById('cloudSyncContainer')?.querySelector('#cloudSignIn')?.click() || window.openCloudModal?.();
+      });
       return;
     }
     let testOk = false;
@@ -1811,10 +1817,10 @@ if (document.getElementById('mainContent')) {
             <span class="hidden sm:inline">Sign in to sync</span>
           </button>
         `;
-        cloudEl.querySelector('#cloudSignIn')?.addEventListener('click', () => openCloudModal());
+        cloudEl.querySelector('#cloudSignIn')?.addEventListener('click', () => window.openCloudModal());
       }
     };
-    const openCloudModal = () => {
+    window.openCloudModal = () => {
       openModal('Cloud Sync', `
         <div class="space-y-4">
           <p class="text-sm text-slate-600 dark:text-slate-400">Sign in to sync your data across devices. Free with Supabase.</p>
