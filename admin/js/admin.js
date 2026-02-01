@@ -257,10 +257,15 @@ if (document.getElementById('loginForm')) {
 if (document.getElementById('mainContent')) {
   if (!checkSession()) { window.location.href = 'index.html'; } else {
   (async () => {
-  await (window.dataService?.init?.() ?? Promise.resolve());
+  let data = null;
+  try {
+    await (window.dataService?.init?.() ?? Promise.resolve());
+    data = window.dataService?.loadAll ? await window.dataService.loadAll() : null;
+  } catch (err) {
+    console.warn('Cloud sync init failed, using localStorage:', err);
+  }
   
   // Data (from cloud if signed in, else localStorage)
-  const data = window.dataService?.loadAll ? await window.dataService.loadAll() : null;
   let tasks = data ? (data.tasks ?? []) : (getFromStorage(STORAGE_KEYS.tasks) || []);
   let goals = data ? (data.goals ?? []) : (getFromStorage(STORAGE_KEYS.goals) || []);
   let habits = data ? (data.habits ?? []) : (getFromStorage(STORAGE_KEYS.habits) || []);
@@ -312,6 +317,9 @@ if (document.getElementById('mainContent')) {
   document.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', (e) => { e.preventDefault(); showSection(link.dataset.section); });
   });
+  const hash = window.location.hash.slice(1);
+  if (hash && document.getElementById(hash)) showSection(hash);
+  window.addEventListener('hashchange', () => { const h = window.location.hash.slice(1); if (h && document.getElementById(h)) showSection(h); });
   
   // Logout
   const handleLogout = () => { clearSession(); window.location.href = 'index.html'; };

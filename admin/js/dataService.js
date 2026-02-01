@@ -41,17 +41,23 @@ const dataService = {
   _useCloud: false,
 
   init() {
-    const config = typeof SUPABASE_CONFIG !== 'undefined' ? SUPABASE_CONFIG : null;
-    if (!config?.url || !config?.anonKey || config.url.includes('YOUR_') || config.anonKey.includes('YOUR_')) {
+    try {
+      const config = typeof SUPABASE_CONFIG !== 'undefined' ? SUPABASE_CONFIG : null;
+      if (!config?.url || !config?.anonKey || config.url.includes('YOUR_') || config.anonKey.includes('YOUR_')) {
+        this._useCloud = false;
+        return Promise.resolve();
+      }
+      if (typeof supabase === 'undefined') {
+        console.warn('Supabase not loaded. Using localStorage.');
+        return Promise.resolve();
+      }
+      this._supabase = supabase.createClient(config.url, config.anonKey);
+      return this._checkSession();
+    } catch (err) {
+      console.warn('Supabase init failed:', err);
       this._useCloud = false;
       return Promise.resolve();
     }
-    if (typeof supabase === 'undefined') {
-      console.warn('Supabase not loaded. Using localStorage.');
-      return Promise.resolve();
-    }
-    this._supabase = supabase.createClient(config.url, config.anonKey);
-    return this._checkSession();
   },
 
   async _checkSession() {
@@ -96,38 +102,47 @@ const dataService = {
 
   async get(domain) {
     const key = STORAGE_KEYS[domain] || STORAGE_PREFIX + domain;
-    if (!this._useCloud || !this._supabase) {
+    try {
+      if (!this._useCloud || !this._supabase) {
+        return getLocal(key) ?? getDefault(domain);
+      }
+      const { data: { user } } = await this._supabase.auth.getUser();
+      if (!user) return getLocal(key) ?? getDefault(domain);
+      const { data, error } = await this._supabase
+        .from('user_data')
+        .select('data')
+        .eq('user_id', user.id)
+        .eq('domain', domain)
+        .maybeSingle();
+      if (error) {
+        console.warn('Supabase get error:', error);
+        return getLocal(key) ?? getDefault(domain);
+      }
+      return data?.data ?? getLocal(key) ?? getDefault(domain);
+    } catch (err) {
+      console.warn('DataService get error:', err);
       return getLocal(key) ?? getDefault(domain);
     }
-    const { data: { user } } = await this._supabase.auth.getUser();
-    if (!user) return getLocal(key) ?? getDefault(domain);
-    const { data, error } = await this._supabase
-      .from('user_data')
-      .select('data')
-      .eq('user_id', user.id)
-      .eq('domain', domain)
-      .maybeSingle();
-    if (error) {
-      console.warn('Supabase get error:', error);
-      return getLocal(key) ?? getDefault(domain);
-    }
-    return data?.data ?? getLocal(key) ?? getDefault(domain);
   },
 
   async save(domain, data) {
     const key = STORAGE_KEYS[domain] || STORAGE_PREFIX + domain;
     setLocal(key, data); // always cache locally
-    if (!this._useCloud || !this._supabase) return;
-    const { data: { user } } = await this._supabase.auth.getUser();
-    if (!user) return;
-    await this._supabase
-      .from('user_data')
-      .upsert({
-        user_id: user.id,
-        domain,
-        data,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id,domain' });
+    try {
+      if (!this._useCloud || !this._supabase) return;
+      const { data: { user } } = await this._supabase.auth.getUser();
+      if (!user) return;
+      await this._supabase
+        .from('user_data')
+        .upsert({
+          user_id: user.id,
+          domain,
+          data,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,domain' });
+    } catch (err) {
+      console.warn('DataService save error:', err);
+    }
   },
 
   async loadAll() {
