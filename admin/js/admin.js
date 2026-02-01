@@ -159,6 +159,7 @@ const formatDateShort = (date) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+const parseAmount = (val) => Math.round((parseFloat(val) || 0) * 100) / 100;
 
 const getFromStorage = (key) => {
   try { return JSON.parse(localStorage.getItem(key)); } 
@@ -716,8 +717,9 @@ if (document.getElementById('mainContent')) {
           return `<div class="flex items-center gap-2"><input type="checkbox" id="field_${f.key}" class="w-4 h-4 rounded"${defaultChecked}>
             <label class="text-sm font-medium text-slate-700 dark:text-slate-300">${f.label}</label></div>`;
         } else {
+          const stepMin = f.key === 'amount' ? ' min="0" step="0.01"' : '';
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
-            <input type="${f.type}" id="field_${f.key}" ${f.required ? 'required' : ''} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>`;
+            <input type="${f.type}" id="field_${f.key}" ${f.required ? 'required' : ''}${stepMin} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>`;
         }
       }).join('');
     };
@@ -743,7 +745,7 @@ if (document.getElementById('mainContent')) {
       const data = {};
       t.fields.forEach(f => {
         const el = document.getElementById(`field_${f.key}`);
-        if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? parseFloat(el.value) || 0 : el.value);
+        if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? (f.key === 'amount' ? parseAmount(el.value) : parseFloat(el.value) || 0) : el.value);
       });
       
       const date = document.getElementById('logDate').value;
@@ -846,8 +848,9 @@ if (document.getElementById('mainContent')) {
           return `<div class="flex items-center gap-2"><input type="checkbox" id="edit_field_${f.key}" ${val ? 'checked' : ''} class="w-4 h-4 rounded">
             <label class="text-sm font-medium text-slate-700 dark:text-slate-300">${f.label}</label></div>`;
         } else {
+          const stepMin = f.key === 'amount' ? ' min="0" step="0.01"' : '';
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
-            <input type="${f.type}" id="edit_field_${f.key}" ${f.required ? 'required' : ''} value="${valStr.replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>`;
+            <input type="${f.type}" id="edit_field_${f.key}" ${f.required ? 'required' : ''}${stepMin} value="${valStr.replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>`;
         }
       }).join('');
     };
@@ -879,7 +882,7 @@ if (document.getElementById('mainContent')) {
       const data = {};
       t.fields.forEach(f => {
         const el = document.getElementById(`edit_field_${f.key}`);
-        if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? parseFloat(el.value) || 0 : el.value);
+        if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? (f.key === 'amount' ? parseAmount(el.value) : parseFloat(el.value) || 0) : el.value);
       });
       
       const date = document.getElementById('editLogDate').value;
@@ -1581,7 +1584,7 @@ if (document.getElementById('mainContent')) {
     `);
     document.getElementById('txnForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      finance.transactions.push({ id: generateId(), type: document.getElementById('txnType').value, description: document.getElementById('txnDesc').value, amount: parseFloat(document.getElementById('txnAmount').value), category: document.getElementById('txnCat').value, date: document.getElementById('txnDate').value, createdAt: Date.now() });
+      finance.transactions.push({ id: generateId(), type: document.getElementById('txnType').value, description: document.getElementById('txnDesc').value, amount: parseAmount(document.getElementById('txnAmount').value), category: document.getElementById('txnCat').value, date: document.getElementById('txnDate').value, createdAt: Date.now() });
       saveToStorage(STORAGE_KEYS.finance, finance); renderFinance(); closeModal();
     });
   });
