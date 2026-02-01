@@ -65,15 +65,17 @@ The deploy workflow injects config from GitHub Secrets. Add these in your repo:
 
 The deploy workflow will add `SUPABASE_CONFIG` to the generated `admin-config.js` when both secrets exist. If either is missing, cloud sync is disabled (localStorage only).
 
-## 5. Disable email confirmation (recommended)
+## 5. Disable email confirmation (required)
 
-Supabase requires email confirmation by default, which sends links to localhost. Disable it for instant sign-up:
+Supabase sends confirmation emails by default. **Turn this off** or you'll hit rate limits and get "email rate exceeded" errors:
 
 1. Go to **Authentication** → **Providers** → **Email**
 2. Turn off **Confirm email**
 3. Save
 
-You can sign in immediately after signing up. (To use confirmation instead, configure **Authentication** → **URL Configuration** with your production Site URL and Redirect URLs.)
+**Why:** Supabase's default SMTP allows only ~2 emails/hour. Confirmation emails count against this. Disabling it lets users sign in immediately without emails.
+
+**If you need confirmation emails:** Set up custom SMTP (Resend, SendGrid, etc.) in **Project Settings** → **Auth** → **SMTP** to bypass the limit.
 
 ## Done
 

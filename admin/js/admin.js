@@ -242,18 +242,25 @@ if (document.getElementById('loginForm')) {
         this.innerHTML = `<i class="fas fa-eye${pw.type === 'password' ? '' : '-slash'}"></i>`;
       });
       
+      const showAuthError = (errEl, msg) => {
+        const friendly = /rate limit|rate_limit|email.*exceed/i.test(msg)
+          ? 'Email rate limit hit. Disable "Confirm email" in Supabase (Auth → Providers → Email) or wait an hour.'
+          : msg;
+        errEl.textContent = friendly;
+        errEl.classList.remove('hidden');
+      };
       document.getElementById('supabaseLoginForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const err = document.getElementById('loginError');
         const { error } = await window.dataService.signIn(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
-        if (error) { err.textContent = error.message; err.classList.remove('hidden'); }
+        if (error) showAuthError(err, error.message);
         else window.location.href = 'dashboard.html';
       });
       
       document.getElementById('signUpBtn')?.addEventListener('click', async () => {
         const err = document.getElementById('loginError');
         const { error } = await window.dataService.signUp(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
-        if (error) { err.textContent = error.message; err.classList.remove('hidden'); }
+        if (error) showAuthError(err, error.message);
         else window.location.href = 'dashboard.html';
       });
     } else {
@@ -344,9 +351,12 @@ if (document.getElementById('mainContent')) {
   if (hash && document.getElementById(hash)) showSection(hash);
   window.addEventListener('hashchange', () => { const h = window.location.hash.slice(1); if (h && document.getElementById(h)) showSection(h); });
   
-  // Logout
+  // Logout - sign out of Supabase and clear local cache so next user doesn't see old data
   const handleLogout = async () => {
     await (window.dataService?.signOut?.() ?? Promise.resolve());
+    (window.dataService?.clearLocalCache?.() ?? (() => {
+      ['tasks','goals','habits','finance','journal','lifeLog'].forEach(d => localStorage.removeItem('lifeErp_' + d));
+    }))();
     clearSession();
     window.location.href = 'index.html';
   };
@@ -1867,7 +1877,13 @@ if (document.getElementById('mainContent')) {
         const password = document.getElementById('cloudPassword').value;
         const err = document.getElementById('cloudAuthError');
         const { error } = isSignUp ? await window.dataService.signUp(email, password) : await window.dataService.signIn(email, password);
-        if (error) { err.textContent = error.message; err.classList.remove('hidden'); return; }
+        if (error) {
+          err.textContent = /rate limit|rate_limit|email.*exceed/i.test(error.message)
+            ? 'Email rate limit. Disable "Confirm email" in Supabase (Auth → Providers → Email).'
+            : error.message;
+          err.classList.remove('hidden');
+          return;
+        }
         const hasLocal = (window.DATA_DOMAINS || []).some(d => localStorage.getItem(STORAGE_KEYS[d] || 'lifeErp_' + d));
         if (hasLocal) await window.dataService.importLocalToCloud();
         closeModal(); window.location.reload();

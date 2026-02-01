@@ -99,6 +99,12 @@ const dataService = {
   async signOut() {
     if (this._supabase) await this._supabase.auth.signOut();
     this._useCloud = false;
+    this.clearLocalCache();
+  },
+  clearLocalCache() {
+    DATA_DOMAINS.forEach(d => {
+      try { localStorage.removeItem(DATA_KEYS[d] || STORAGE_PREFIX + d); } catch {}
+    });
   },
 
   async get(domain) {
