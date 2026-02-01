@@ -311,6 +311,7 @@ if (document.getElementById('mainContent')) {
     // Render section-specific content
     if (id === 'lifelog') { renderCalendar(); renderDayDetail(); }
     if (id === 'library') renderLibrary();
+    if (id === 'settings') updateCloudSyncStatus();
   };
   window.showSection = showSection;
   
@@ -1739,6 +1740,51 @@ if (document.getElementById('mainContent')) {
   renderCalendar();
   renderDayDetail();
   updateStats();
+
+  // Cloud sync status (Settings page)
+  const updateCloudSyncStatus = async () => {
+    const el = document.getElementById('cloudSyncStatus');
+    if (!el) return;
+    const config = typeof SUPABASE_CONFIG !== 'undefined' ? SUPABASE_CONFIG : null;
+    const configured = !!(config?.url && config?.anonKey && !config.url.includes('YOUR_') && !config.anonKey.includes('YOUR_'));
+    if (!configured) {
+      el.innerHTML = `
+        <p class="text-amber-600 dark:text-amber-400"><i class="fas fa-exclamation-triangle mr-2"></i>Supabase not configured</p>
+        <p class="text-slate-500 dark:text-slate-400 text-xs mt-1">Add SUPABASE_URL and SUPABASE_ANON_KEY to GitHub Secrets. See admin/SUPABASE_SETUP.md</p>
+        <p class="text-slate-500 dark:text-slate-400 mt-2"><strong>Storage:</strong> Local only (browser)</p>
+      `;
+      return;
+    }
+    if (!window.dataService?.isCloudEnabled?.()) {
+      el.innerHTML = `
+        <p class="text-amber-600 dark:text-amber-400"><i class="fas fa-exclamation-triangle mr-2"></i>Supabase client failed to init</p>
+        <p class="text-slate-500 dark:text-slate-400 text-xs mt-1">Check browser console for errors. Supabase script may have failed to load.</p>
+        <p class="text-slate-500 dark:text-slate-400 mt-2"><strong>Storage:</strong> Local only (fallback)</p>
+      `;
+      return;
+    }
+    const session = await window.dataService.getSession();
+    if (!session) {
+      el.innerHTML = `
+        <p class="text-slate-600 dark:text-slate-300"><i class="fas fa-cloud mr-2"></i>Supabase configured</p>
+        <p class="text-amber-600 dark:text-amber-400 mt-2">Not signed in – using local storage</p>
+        <p class="text-slate-500 dark:text-slate-400 text-xs mt-1">Click "Sign in to sync" in the header to enable cloud sync.</p>
+        <p class="text-slate-500 dark:text-slate-400 mt-2"><strong>Storage:</strong> Local only</p>
+      `;
+      return;
+    }
+    let testOk = false;
+    let testErr = '';
+    try {
+      const d = await window.dataService.get('tasks');
+      testOk = Array.isArray(d);
+    } catch (e) { testErr = e.message || String(e); }
+    el.innerHTML = `
+      <p class="text-emerald-600 dark:text-emerald-400"><i class="fas fa-cloud mr-2"></i>Supabase connected</p>
+      <p class="text-slate-500 dark:text-slate-400 text-xs mt-1">Signed in as ${(session.user?.email || 'unknown').replace(/</g, '&lt;')}</p>
+      <p class="text-slate-500 dark:text-slate-400 mt-2"><strong>Storage:</strong> ${testOk ? 'Cloud sync active' : 'Cloud sync (fetch test failed: ' + testErr + ')'}</p>
+    `;
+  };
 
   // Cloud sync UI
   const cloudEl = document.getElementById('cloudSyncContainer');
