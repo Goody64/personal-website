@@ -112,8 +112,19 @@ const ACTIVITY_TYPES = {
 // Utility Functions
 // ========================================
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
-const formatDate = (date) => new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-const formatDateShort = (date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+// Parse YYYY-MM-DD as local date (avoids timezone offset bug)
+const parseLocalDate = (dateStr) => {
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+const formatDate = (date) => {
+  const d = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? parseLocalDate(date) : new Date(date);
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
+const formatDateShort = (date) => {
+  const d = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? parseLocalDate(date) : new Date(date);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
 const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 
 const getFromStorage = (key) => {
