@@ -1,14 +1,8 @@
 // ========================================
 // Life ERP - Admin JavaScript
 // ========================================
-
-// Auth Configuration - CHANGE THESE CREDENTIALS!
-const AUTH_CONFIG = {
-  username: 'jacob',
-  password: 'lifeErp2026!',
-  sessionKey: 'lifeErp_session',
-  sessionDuration: 24 * 60 * 60 * 1000 // 24 hours
-};
+// Requires admin-config.js (gitignored) - copy from admin-config.example.js
+// Credentials are loaded from admin-config.js to keep them out of version control.
 
 // Storage Keys
 const STORAGE_KEYS = {
@@ -58,18 +52,29 @@ const saveToStorage = (key, data) => {
 // ========================================
 // Authentication
 // ========================================
+const getAuthConfig = () => {
+  if (typeof AUTH_CONFIG === 'undefined') {
+    return null;
+  }
+  return AUTH_CONFIG;
+};
+
 const createSession = () => {
+  const config = getAuthConfig();
+  if (!config) return false;
   const session = {
     authenticated: true,
     createdAt: Date.now(),
-    expiresAt: Date.now() + AUTH_CONFIG.sessionDuration
+    expiresAt: Date.now() + config.sessionDuration
   };
-  saveToStorage(AUTH_CONFIG.sessionKey, session);
+  saveToStorage(config.sessionKey, session);
   return session;
 };
 
 const checkSession = () => {
-  const session = getFromStorage(AUTH_CONFIG.sessionKey);
+  const config = getAuthConfig();
+  if (!config) return false;
+  const session = getFromStorage(config.sessionKey);
   if (!session) return false;
   if (Date.now() > session.expiresAt) {
     clearSession();
@@ -78,10 +83,17 @@ const checkSession = () => {
   return session.authenticated;
 };
 
-const clearSession = () => localStorage.removeItem(AUTH_CONFIG.sessionKey);
+const clearSession = () => {
+  const config = getAuthConfig();
+  if (config) {
+    localStorage.removeItem(config.sessionKey);
+  }
+};
 
 const authenticate = (username, password) => {
-  if (username === AUTH_CONFIG.username && password === AUTH_CONFIG.password) {
+  const config = getAuthConfig();
+  if (!config) return false;
+  if (username === config.username && password === config.password) {
     createSession();
     return true;
   }
@@ -97,11 +109,21 @@ if (document.getElementById('loginForm')) {
   const togglePassword = document.getElementById('togglePassword');
   const passwordInput = document.getElementById('password');
   
-  // Redirect if already logged in
-  if (checkSession()) {
+  // Check if config exists - show setup message if not
+  if (!getAuthConfig()) {
+    loginForm.innerHTML = `
+      <div class="p-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-200">
+        <h3 class="font-semibold mb-2 flex items-center gap-2">
+          <i class="fas fa-exclamation-triangle"></i>
+          Admin Not Configured
+        </h3>
+        <p class="text-sm mb-4">Create <code class="bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">admin-config.js</code> from <code class="bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">admin-config.example.js</code> and set your credentials. The config file is in .gitignore and will not be committed.</p>
+        <p class="text-xs text-amber-600 dark:text-amber-400">Copy: <code class="bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">admin-config.example.js</code> → <code class="bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">admin-config.js</code></p>
+      </div>
+    `;
+  } else if (checkSession()) {
     window.location.href = 'dashboard.html';
-  }
-  
+  } else {
   // Toggle password visibility
   togglePassword?.addEventListener('click', () => {
     const type = passwordInput.type === 'password' ? 'text' : 'password';
@@ -128,6 +150,7 @@ if (document.getElementById('loginForm')) {
       }, 3000);
     }
   });
+  }
 }
 
 // ========================================
