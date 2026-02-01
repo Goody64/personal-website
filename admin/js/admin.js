@@ -94,6 +94,15 @@ const ACTIVITY_TYPES = {
       { key: 'value', label: 'Value', type: 'number', required: true },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
+  sports: { name: 'Sports', icon: 'fa-trophy', color: '#eab308', plural: 'events',
+    fields: [
+      { key: 'event', label: 'Event / Match', type: 'text', required: true },
+      { key: 'sport', label: 'Sport / Game', type: 'text', required: true },
+      { key: 'venue', label: 'How', type: 'select', options: ['In Person', 'TV', 'Stream', 'Online'], required: true },
+      { key: 'location', label: 'Location / Platform', type: 'text' },
+      { key: 'teams', label: 'Teams / Competitors', type: 'text' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
+    ]},
   event: { name: 'Event', icon: 'fa-calendar-check', color: '#3b82f6', plural: 'events',
     fields: [
       { key: 'title', label: 'Event', type: 'text', required: true },
@@ -915,6 +924,39 @@ if (document.getElementById('mainContent')) {
                 <h4 class="font-semibold text-slate-900 dark:text-white">${title}</h4>
                 <p class="text-sm text-slate-500 dark:text-slate-400">${data.pages} pages · ${data.sessions} sessions ${data.finished ? '· <span class="text-green-500">Finished</span>' : ''}</p>
                 <p class="text-xs text-slate-400 mt-1">Last read: ${formatDateShort(data.lastRead)}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+    } else if (type === 'sports') {
+      // Group by sport
+      const sports = {};
+      entries.forEach(e => {
+        const sport = e.data.sport || 'Other';
+        if (!sports[sport]) sports[sport] = { events: [], lastWatched: e.date };
+        sports[sport].events.push(e);
+        if (e.date > sports[sport].lastWatched) sports[sport].lastWatched = e.date;
+      });
+      
+      const sorted = Object.entries(sports).sort((a, b) => new Date(b[1].lastWatched) - new Date(a[1].lastWatched));
+      
+      html = `<div class="space-y-4">`;
+      sorted.forEach(([sport, data]) => {
+        const inPerson = data.events.filter(e => e.data.venue === 'In Person').length;
+        const watched = data.events.length - inPerson;
+        html += `
+          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div class="flex items-start gap-4">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
+                <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h4 class="font-semibold text-slate-900 dark:text-white">${sport}</h4>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${data.events.length} event${data.events.length !== 1 ? 's' : ''}${inPerson ? ` · ${inPerson} in person` : ''}${watched ? ` · ${watched} watched` : ''}</p>
+                <p class="text-xs text-slate-400 mt-2">${data.events.slice(0, 3).map(e => e.data.event).join(', ')}${data.events.length > 3 ? '...' : ''}</p>
+                <p class="text-xs text-slate-400 mt-1">Last: ${formatDateShort(data.lastWatched)}</p>
               </div>
             </div>
           </div>
