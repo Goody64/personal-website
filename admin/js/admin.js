@@ -655,7 +655,7 @@ if (document.getElementById('mainContent')) {
     const t = ACTIVITY_TYPES[e.type];
     const mainField = t?.fields[0]?.key;
     const mainValue = e.data[mainField] || 'Entry';
-    const details = t?.fields.slice(1).filter(f => f.key !== 'repeat').map(f => ({ label: f.label, value: e.data[f.key] })).filter(d => d.value !== undefined && d.value !== '' && d.value !== false) || [];
+    const details = t?.fields.slice(1).filter(f => !['repeat', 'notes', 'content'].includes(f.key)).map(f => ({ label: f.label, value: e.data[f.key] })).filter(d => d.value !== undefined && d.value !== '' && d.value !== false) || [];
     const repeatLabel = { tv: 'Rewatch', game: 'Replay', movie: 'Rewatch', book: 'Re-read' }[e.type];
     
     let html = `
