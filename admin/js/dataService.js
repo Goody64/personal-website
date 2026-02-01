@@ -5,7 +5,7 @@
 
 const DATA_DOMAINS = ['tasks', 'goals', 'habits', 'finance', 'journal', 'lifeLog'];
 const STORAGE_PREFIX = 'lifeErp_';
-const STORAGE_KEYS = {
+const DATA_KEYS = {
   tasks: STORAGE_PREFIX + 'tasks',
   goals: STORAGE_PREFIX + 'goals',
   habits: STORAGE_PREFIX + 'habits',
@@ -101,7 +101,7 @@ const dataService = {
   },
 
   async get(domain) {
-    const key = STORAGE_KEYS[domain] || STORAGE_PREFIX + domain;
+    const key = DATA_KEYS[domain] || STORAGE_PREFIX + domain;
     try {
       if (!this._useCloud || !this._supabase) {
         return getLocal(key) ?? getDefault(domain);
@@ -126,7 +126,7 @@ const dataService = {
   },
 
   async save(domain, data) {
-    const key = STORAGE_KEYS[domain] || STORAGE_PREFIX + domain;
+    const key = DATA_KEYS[domain] || STORAGE_PREFIX + domain;
     setLocal(key, data); // always cache locally
     try {
       if (!this._useCloud || !this._supabase) return;
@@ -158,7 +158,7 @@ const dataService = {
     const { data: { user } } = await this._supabase.auth.getUser();
     if (!user) return { error: new Error('Not signed in') };
     for (const domain of DATA_DOMAINS) {
-      const key = STORAGE_KEYS[domain];
+      const key = DATA_KEYS[domain];
       const local = getLocal(key);
       if (local != null) await this.save(domain, local);
     }
@@ -169,4 +169,3 @@ const dataService = {
 // Expose for admin.js
 window.dataService = dataService;
 window.DATA_DOMAINS = DATA_DOMAINS;
-window.STORAGE_KEYS = STORAGE_KEYS;
