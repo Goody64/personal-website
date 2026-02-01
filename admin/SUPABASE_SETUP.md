@@ -45,9 +45,10 @@ CREATE POLICY "Users can delete own data" ON user_data
 ## 3. Get Your Keys
 
 1. In Supabase, go to **Project Settings** → **API**
-2. Copy:
+2. Under **Project API keys**, copy:
    - **Project URL** (e.g. `https://xxxxx.supabase.co`)
-   - **anon public** key (under "Project API keys")
+   - **anon** / **public** key only — NOT the `service_role` key
+3. **Important:** Use the **anon** key. The `service_role` key must never be used in the browser — it will cause "Forbidden use of secret API key in browser"
 
 ## 4. Add GitHub Secrets
 
@@ -58,7 +59,9 @@ The deploy workflow injects config from GitHub Secrets. Add these in your repo:
 | Secret | Value |
 |--------|-------|
 | `SUPABASE_URL` | `https://YOUR_PROJECT_ID.supabase.co` |
-| `SUPABASE_ANON_KEY` | Your anon/public key from Supabase |
+| `SUPABASE_ANON_KEY` | The **anon** (public) key — NOT the service_role key |
+
+**Warning:** If you use the `service_role` key by mistake, you'll get "Forbidden use of secret API key in browser". In Supabase → Project Settings → API, use the key labeled **anon** / **public**.
 
 The deploy workflow will add `SUPABASE_CONFIG` to the generated `admin-config.js` when both secrets exist. If either is missing, cloud sync is disabled (localStorage only).
 
