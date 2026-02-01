@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard | Life ERP</title>
+  
+  <link rel="icon" type="image/x-icon" href="../assets/favicon.ico">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+  
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); }
+    .sidebar-collapsed { width: 80px; }
+    .sidebar-collapsed .sidebar-text { display: none; }
+    .sidebar-collapsed .sidebar-logo span { display: none; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: fadeIn 0.3s ease; }
+  </style>
+</head>
+
+<body class="bg-slate-100 dark:bg-slate-900 font-sans transition-colors">
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-slate-900 dark:bg-slate-950 text-white z-50 transition-all duration-300 flex flex-col">
+      <!-- Logo -->
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div class="sidebar-logo flex items-center gap-3">
+          <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center">
+            <i class="fas fa-infinity text-lg"></i>
+          </div>
+          <span class="font-bold text-lg">Life ERP</span>
+        </div>
+        <button id="sidebarToggle" class="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+      
+      <!-- Navigation -->
+      <nav class="flex-1 overflow-y-auto p-4 space-y-2">
+        <p class="sidebar-text text-xs text-slate-500 uppercase tracking-wider mb-2 px-3">Overview</p>
+        <a href="#dashboard" class="nav-link active flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="dashboard">
+          <i class="fas fa-th-large w-5 text-center"></i>
+          <span class="sidebar-text">Dashboard</span>
+        </a>
+        
+        <p class="sidebar-text text-xs text-slate-500 uppercase tracking-wider mt-6 mb-2 px-3">Productivity</p>
+        <a href="#tasks" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="tasks">
+          <i class="fas fa-tasks w-5 text-center"></i>
+          <span class="sidebar-text">Tasks</span>
+          <span class="sidebar-text ml-auto px-2 py-0.5 bg-blue-600 text-xs rounded-full" id="taskBadge">0</span>
+        </a>
+        <a href="#goals" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="goals">
+          <i class="fas fa-bullseye w-5 text-center"></i>
+          <span class="sidebar-text">Goals</span>
+        </a>
+        <a href="#habits" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="habits">
+          <i class="fas fa-sync-alt w-5 text-center"></i>
+          <span class="sidebar-text">Habits</span>
+        </a>
+        <a href="#calendar" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="calendar">
+          <i class="fas fa-calendar-alt w-5 text-center"></i>
+          <span class="sidebar-text">Calendar</span>
+        </a>
+        
+        <p class="sidebar-text text-xs text-slate-500 uppercase tracking-wider mt-6 mb-2 px-3">Life Tracking</p>
+        <a href="#finance" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="finance">
+          <i class="fas fa-wallet w-5 text-center"></i>
+          <span class="sidebar-text">Finance</span>
+        </a>
+        <a href="#health" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="health">
+          <i class="fas fa-heartbeat w-5 text-center"></i>
+          <span class="sidebar-text">Health</span>
+        </a>
+        <a href="#journal" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="journal">
+          <i class="fas fa-book w-5 text-center"></i>
+          <span class="sidebar-text">Journal</span>
+        </a>
+        
+        <p class="sidebar-text text-xs text-slate-500 uppercase tracking-wider mt-6 mb-2 px-3">System</p>
+        <a href="#settings" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="settings">
+          <i class="fas fa-cog w-5 text-center"></i>
+          <span class="sidebar-text">Settings</span>
+        </a>
+      </nav>
+      
+      <!-- User -->
+      <div class="p-4 border-t border-slate-800">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center font-bold">JG</div>
+          <div class="sidebar-text flex-1">
+            <p class="font-semibold text-sm">Jacob</p>
+            <p class="text-xs text-slate-500">Admin</p>
+          </div>
+          <button id="logoutBtn" class="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors" title="Logout">
+            <i class="fas fa-sign-out-alt"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main id="mainContent" class="flex-1 ml-64 transition-all duration-300">
+      <!-- Top Bar -->
+      <header class="sticky top-0 z-40 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-700 px-6 py-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <button id="mobileMenuBtn" class="lg:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+              <i class="fas fa-bars text-slate-600 dark:text-slate-300"></i>
+            </button>
+            <div class="hidden sm:flex items-center gap-3 bg-slate-100 dark:bg-slate-700 rounded-xl px-4 py-2 w-72">
+              <i class="fas fa-search text-slate-400"></i>
+              <input type="text" placeholder="Search anything..." class="bg-transparent border-none outline-none text-slate-900 dark:text-white placeholder-slate-400 w-full text-sm">
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-3">
+            <button id="themeToggle" class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-blue-500 hover:text-white transition-all">
+              <i class="fas fa-moon dark:hidden"></i>
+              <i class="fas fa-sun hidden dark:inline"></i>
+            </button>
+            <button class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-blue-500 hover:text-white transition-all relative">
+              <i class="fas fa-bell"></i>
+              <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+            <a href="../" class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-blue-500 hover:text-white transition-all" title="View Portfolio">
+              <i class="fas fa-external-link-alt"></i>
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <!-- Content Sections -->
+      <div class="p-6">
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="content-section">
+          <div class="mb-6">
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
+            <p class="text-slate-500 dark:text-slate-400">Welcome back, Jacob! Here's your life at a glance.</p>
+          </div>
+          
+          <!-- Stats Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+                  <i class="fas fa-tasks text-blue-600 dark:text-blue-400 text-lg"></i>
+                </div>
+                <div>
+                  <p class="text-2xl font-bold text-slate-900 dark:text-white" id="statTasks">0</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">Active Tasks</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+                  <i class="fas fa-bullseye text-green-600 dark:text-green-400 text-lg"></i>
+                </div>
+                <div>
+                  <p class="text-2xl font-bold text-slate-900 dark:text-white" id="statGoals">0%</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">Goal Progress</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
+                  <i class="fas fa-fire text-orange-600 dark:text-orange-400 text-lg"></i>
+                </div>
+                <div>
+                  <p class="text-2xl font-bold text-slate-900 dark:text-white" id="statStreak">0</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">Day Streak</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+                  <i class="fas fa-dollar-sign text-purple-600 dark:text-purple-400 text-lg"></i>
+                </div>
+                <div>
+                  <p class="text-2xl font-bold text-slate-900 dark:text-white" id="statBalance">$0</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">This Month</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Widgets -->
+          <div class="grid lg:grid-cols-2 gap-6">
+            <!-- Today's Tasks -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <div class="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <i class="fas fa-tasks text-blue-500"></i>
+                  Today's Tasks
+                </h3>
+                <button class="text-sm text-blue-600 dark:text-blue-400 hover:underline" onclick="showSection('tasks')">View All</button>
+              </div>
+              <div class="p-5" id="todayTasksWidget">
+                <div class="text-center py-8 text-slate-400">
+                  <i class="fas fa-clipboard-check text-4xl mb-3 opacity-50"></i>
+                  <p>No tasks for today</p>
+                  <button onclick="showSection('tasks')" class="mt-3 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">Add Task</button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Recent Activity -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <div class="p-5 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <i class="fas fa-history text-blue-500"></i>
+                  Recent Activity
+                </h3>
+              </div>
+              <div class="p-5" id="activityWidget">
+                <div class="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                  <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-check-circle text-green-600 dark:text-green-400"></i>
+                  </div>
+                  <div>
+                    <p class="text-sm font-medium text-slate-900 dark:text-white">Welcome to Life ERP!</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Just now</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tasks Section -->
+        <section id="tasks" class="content-section hidden">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Tasks</h1>
+            <button id="addTaskBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
+              <i class="fas fa-plus"></i>
+              <span>Add Task</span>
+            </button>
+          </div>
+          
+          <!-- Task Board -->
+          <div class="grid md:grid-cols-3 gap-4">
+            <div class="bg-slate-100 dark:bg-slate-800/50 rounded-2xl p-4">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <i class="fas fa-inbox text-slate-400"></i>
+                  To Do
+                </h3>
+                <span class="px-2 py-0.5 bg-white dark:bg-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 rounded-lg" id="todoCount">0</span>
+              </div>
+              <div id="todoTasks" class="space-y-3 min-h-[200px]"></div>
+            </div>
+            
+            <div class="bg-slate-100 dark:bg-slate-800/50 rounded-2xl p-4">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <i class="fas fa-spinner text-blue-500"></i>
+                  In Progress
+                </h3>
+                <span class="px-2 py-0.5 bg-white dark:bg-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 rounded-lg" id="progressCount">0</span>
+              </div>
+              <div id="inProgressTasks" class="space-y-3 min-h-[200px]"></div>
+            </div>
+            
+            <div class="bg-slate-100 dark:bg-slate-800/50 rounded-2xl p-4">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <i class="fas fa-check-circle text-green-500"></i>
+                  Done
+                </h3>
+                <span class="px-2 py-0.5 bg-white dark:bg-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 rounded-lg" id="doneCount">0</span>
+              </div>
+              <div id="doneTasks" class="space-y-3 min-h-[200px]"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Goals Section -->
+        <section id="goals" class="content-section hidden">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Goals</h1>
+            <button id="addGoalBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
+              <i class="fas fa-plus"></i>
+              <span>Add Goal</span>
+            </button>
+          </div>
+          <div id="goalsContainer" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="col-span-full text-center py-16 text-slate-400">
+              <i class="fas fa-bullseye text-5xl mb-4 opacity-50"></i>
+              <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No goals yet</h3>
+              <p class="mb-4">Set your first goal to start tracking progress</p>
+              <button id="addFirstGoal" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i class="fas fa-plus mr-2"></i>Create Goal
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Habits Section -->
+        <section id="habits" class="content-section hidden">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Habits</h1>
+            <button id="addHabitBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
+              <i class="fas fa-plus"></i>
+              <span>Add Habit</span>
+            </button>
+          </div>
+          <div id="habitsContainer">
+            <div class="text-center py-16 text-slate-400">
+              <i class="fas fa-sync-alt text-5xl mb-4 opacity-50"></i>
+              <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No habits tracked</h3>
+              <p class="mb-4">Build better habits by tracking them daily</p>
+              <button id="addFirstHabit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i class="fas fa-plus mr-2"></i>Create Habit
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Calendar Section -->
+        <section id="calendar" class="content-section hidden">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Calendar</h1>
+            <button id="addEventBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
+              <i class="fas fa-plus"></i>
+              <span>Add Event</span>
+            </button>
+          </div>
+          <div class="grid lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+              <div class="flex items-center justify-between mb-6">
+                <button id="prevMonth" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                  <i class="fas fa-chevron-left text-slate-600 dark:text-slate-300"></i>
+                </button>
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white" id="currentMonth">January 2026</h3>
+                <button id="nextMonth" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                  <i class="fas fa-chevron-right text-slate-600 dark:text-slate-300"></i>
+                </button>
+              </div>
+              <div id="calendarGrid" class="grid grid-cols-7 gap-1"></div>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+              <h3 class="font-semibold text-slate-900 dark:text-white mb-4">Upcoming Events</h3>
+              <div id="eventsContainer" class="text-center py-8 text-slate-400">
+                <i class="fas fa-calendar-day text-3xl mb-2 opacity-50"></i>
+                <p class="text-sm">No upcoming events</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Finance Section -->
+        <section id="finance" class="content-section hidden">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Finance</h1>
+            <button id="addTransactionBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
+              <i class="fas fa-plus"></i>
+              <span>Add Transaction</span>
+            </button>
+          </div>
+          
+          <!-- Finance Stats -->
+          <div class="grid sm:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
+              <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-2">
+                <i class="fas fa-arrow-down text-green-500"></i>
+                Income
+              </div>
+              <p class="text-3xl font-bold text-green-600 dark:text-green-400" id="totalIncome">$0.00</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">This month</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
+              <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-2">
+                <i class="fas fa-arrow-up text-red-500"></i>
+                Expenses
+              </div>
+              <p class="text-3xl font-bold text-red-600 dark:text-red-400" id="totalExpenses">$0.00</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">This month</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
+              <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-2">
+                <i class="fas fa-wallet text-blue-500"></i>
+                Balance
+              </div>
+              <p class="text-3xl font-bold text-slate-900 dark:text-white" id="totalBalance">$0.00</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Net this month</p>
+            </div>
+          </div>
+          
+          <!-- Transactions -->
+          <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+            <div class="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h3 class="font-semibold text-slate-900 dark:text-white">Recent Transactions</h3>
+            </div>
+            <div id="transactionsContainer" class="p-5">
+              <div class="text-center py-8 text-slate-400">
+                <i class="fas fa-receipt text-3xl mb-2 opacity-50"></i>
+                <p class="text-sm">No transactions recorded</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Health Section -->
+        <section id="health" class="content-section hidden">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Health & Fitness</h1>
+            <button id="addHealthBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
+              <i class="fas fa-plus"></i>
+              <span>Log Entry</span>
+            </button>
+          </div>
+          
+          <!-- Health Stats -->
+          <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 text-center">
+              <div class="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-shoe-prints text-blue-600 dark:text-blue-400 text-xl"></i>
+              </div>
+              <p class="text-3xl font-bold text-slate-900 dark:text-white" id="todaySteps">0</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Steps Today</p>
+              <p class="text-xs text-slate-400 mt-1">Goal: 10,000</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 text-center">
+              <div class="w-14 h-14 bg-cyan-100 dark:bg-cyan-900/30 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-tint text-cyan-600 dark:text-cyan-400 text-xl"></i>
+              </div>
+              <p class="text-3xl font-bold text-slate-900 dark:text-white" id="todayWater">0</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Glasses of Water</p>
+              <p class="text-xs text-slate-400 mt-1">Goal: 8</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 text-center">
+              <div class="w-14 h-14 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-bed text-purple-600 dark:text-purple-400 text-xl"></i>
+              </div>
+              <p class="text-3xl font-bold text-slate-900 dark:text-white" id="lastSleep">0h</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Sleep Last Night</p>
+              <p class="text-xs text-slate-400 mt-1">Goal: 8h</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 text-center">
+              <div class="w-14 h-14 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-weight text-green-600 dark:text-green-400 text-xl"></i>
+              </div>
+              <p class="text-3xl font-bold text-slate-900 dark:text-white" id="currentWeight">--</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Current Weight</p>
+              <p class="text-xs text-slate-400 mt-1">Track regularly</p>
+            </div>
+          </div>
+          
+          <!-- Workouts -->
+          <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+            <div class="p-5 border-b border-slate-200 dark:border-slate-700">
+              <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <i class="fas fa-dumbbell text-blue-500"></i>
+                Workout Log
+              </h3>
+            </div>
+            <div id="workoutsContainer" class="p-5">
+              <div class="text-center py-8 text-slate-400">
+                <i class="fas fa-running text-3xl mb-2 opacity-50"></i>
+                <p class="text-sm">No workouts logged</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Journal Section -->
+        <section id="journal" class="content-section hidden">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Journal</h1>
+            <button id="addJournalBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
+              <i class="fas fa-plus"></i>
+              <span>New Entry</span>
+            </button>
+          </div>
+          <div id="journalContainer">
+            <div class="text-center py-16 text-slate-400">
+              <i class="fas fa-book-open text-5xl mb-4 opacity-50"></i>
+              <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No journal entries</h3>
+              <p class="mb-4">Start writing to capture your thoughts</p>
+              <button id="startWriting" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i class="fas fa-pen mr-2"></i>Start Writing
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="settings" class="content-section hidden">
+          <h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-6">Settings</h1>
+          
+          <div class="max-w-2xl space-y-6">
+            <!-- Profile -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+              <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700">
+                <i class="fas fa-user text-blue-500"></i>
+                Profile
+              </h3>
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Display Name</label>
+                  <input type="text" value="Jacob" class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm w-48">
+                </div>
+                <div class="flex items-center justify-between">
+                  <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Email</label>
+                  <input type="email" value="jsgoodman64@gmail.com" class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm w-48">
+                </div>
+              </div>
+            </div>
+            
+            <!-- Data -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+              <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700">
+                <i class="fas fa-database text-blue-500"></i>
+                Data Management
+              </h3>
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300">Export All Data</p>
+                    <p class="text-xs text-slate-500">Download a backup of all your data</p>
+                  </div>
+                  <button id="exportData" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                    <i class="fas fa-download mr-2"></i>Export
+                  </button>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-medium text-red-600 dark:text-red-400">Clear All Data</p>
+                    <p class="text-xs text-slate-500">This action cannot be undone</p>
+                  </div>
+                  <button id="clearData" class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
+                    <i class="fas fa-trash mr-2"></i>Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Security -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+              <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700">
+                <i class="fas fa-shield-alt text-blue-500"></i>
+                Security
+              </h3>
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium text-slate-700 dark:text-slate-300">Session</p>
+                  <p class="text-xs text-slate-500">Sign out of your account</p>
+                </div>
+                <button id="logoutSettings" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                  <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div id="modalOverlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div id="modal" class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden shadow-2xl">
+      <div class="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <h3 id="modalTitle" class="font-semibold text-slate-900 dark:text-white">Modal</h3>
+        <button id="modalClose" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-slate-400">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div id="modalBody" class="p-5 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <script src="js/admin.js"></script>
+</body>
+</html>
