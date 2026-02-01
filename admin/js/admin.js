@@ -68,6 +68,8 @@ const ACTIVITY_TYPES = {
       { key: 'item', label: 'Item', type: 'text', required: true },
       { key: 'amount', label: 'Amount ($)', type: 'number', required: true },
       { key: 'store', label: 'Store', type: 'text' },
+      { key: 'addToFinance', label: 'Also add to Finance', type: 'checkbox' },
+      { key: 'financeCategory', label: 'Finance category', type: 'select', options: ['Food', 'Shopping', 'Entertainment', 'Transport', 'Utilities', 'Other'] },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
   meal: { name: 'Meal', icon: 'fa-utensils', color: '#14b8a6', plural: 'meals',
@@ -75,6 +77,8 @@ const ACTIVITY_TYPES = {
       { key: 'meal', label: 'Meal', type: 'select', options: ['Breakfast', 'Lunch', 'Dinner', 'Snack'], required: true },
       { key: 'description', label: 'What you ate', type: 'text' },
       { key: 'restaurant', label: 'Restaurant', type: 'text' },
+      { key: 'amount', label: 'Amount ($)', type: 'number' },
+      { key: 'addToFinance', label: 'Also add to Finance', type: 'checkbox' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
   book: { name: 'Reading', icon: 'fa-book', color: '#a855f7', plural: 'sessions',
@@ -624,7 +628,7 @@ if (document.getElementById('mainContent')) {
             ${e.data.notes ? `<p class="text-sm text-slate-500 dark:text-slate-400 mt-1 whitespace-pre-wrap">${String(e.data.notes).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>` : ''}
           </div>
           <div class="flex items-center gap-1 flex-shrink-0">
-            <button onclick="openEditModal('${e.id}'); closeModal();" class="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg" title="Edit"><i class="fas fa-pen text-xs"></i></button>
+            <button onclick="openEditModal('${e.id}')" class="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg" title="Edit"><i class="fas fa-pen text-xs"></i></button>
             <button onclick="deleteEntry('${e.id}'); closeModal();" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg" title="Delete"><i class="fas fa-trash text-xs"></i></button>
           </div>
         </div>
@@ -657,7 +661,7 @@ if (document.getElementById('mainContent')) {
         ${e.data.notes ? `<div><span class="text-xs text-slate-500 dark:text-slate-400">Notes</span><p class="text-sm text-slate-700 dark:text-slate-300 mt-1 whitespace-pre-wrap">${String(e.data.notes).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>` : ''}
         ${e.data.content ? `<div><span class="text-xs text-slate-500 dark:text-slate-400">Content</span><p class="text-sm text-slate-700 dark:text-slate-300 mt-1 whitespace-pre-wrap">${String(e.data.content).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>` : ''}
         <div class="flex gap-2 pt-2">
-          <button onclick="openEditModal('${e.id}'); closeModal();" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><i class="fas fa-pen mr-2"></i>Edit</button>
+          <button onclick="openEditModal('${e.id}')" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><i class="fas fa-pen mr-2"></i>Edit</button>
           <button onclick="deleteEntry('${e.id}'); closeModal();" class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50"><i class="fas fa-trash mr-2"></i>Delete</button>
         </div>
       </div>
@@ -708,7 +712,8 @@ if (document.getElementById('mainContent')) {
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
             <textarea id="field_${f.key}" rows="2" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea></div>`;
         } else if (f.type === 'checkbox') {
-          return `<div class="flex items-center gap-2"><input type="checkbox" id="field_${f.key}" class="w-4 h-4 rounded">
+          const defaultChecked = (f.key === 'addToFinance' && type === 'purchase') ? ' checked' : '';
+          return `<div class="flex items-center gap-2"><input type="checkbox" id="field_${f.key}" class="w-4 h-4 rounded"${defaultChecked}>
             <label class="text-sm font-medium text-slate-700 dark:text-slate-300">${f.label}</label></div>`;
         } else {
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
@@ -741,10 +746,49 @@ if (document.getElementById('mainContent')) {
         if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? parseFloat(el.value) || 0 : el.value);
       });
       
-      lifeLog.push({ id: generateId(), type, date: document.getElementById('logDate').value, data, createdAt: Date.now() });
+      const date = document.getElementById('logDate').value;
+      const addToFinance = data.addToFinance;
+      
+      if (type === 'meal' && addToFinance && (!data.amount || data.amount <= 0)) {
+        alert('Enter an amount to add to Finance.');
+        return;
+      }
+      
+      const entryId = generateId();
+      lifeLog.push({ id: entryId, type, date, data, createdAt: Date.now() });
+      
+      if (addToFinance && (type === 'meal' || type === 'purchase')) {
+        const amount = type === 'meal' ? (data.amount || 0) : (data.amount || 0);
+        if (amount > 0) {
+          let desc = '';
+          if (type === 'meal') {
+            const parts = [data.meal];
+            if (data.restaurant) parts.push(`at ${data.restaurant}`);
+            desc = parts.join(' ');
+          } else {
+            desc = data.item + (data.store ? ` (${data.store})` : '');
+          }
+          const category = type === 'meal' ? 'Food' : (data.financeCategory || 'Shopping');
+          finance.transactions = finance.transactions || [];
+          finance.transactions.push({
+            id: generateId(),
+            type: 'expense',
+            description: desc,
+            amount: amount,
+            category: category,
+            date: date,
+            createdAt: Date.now(),
+            _fromLifeLog: type,
+            _lifeLogEntryId: entryId
+          });
+          saveToStorage(STORAGE_KEYS.finance, finance);
+        }
+      }
+      
       saveToStorage(STORAGE_KEYS.lifeLog, lifeLog);
       renderCalendar();
       renderDayDetail();
+      renderFinance();
       updateStats();
       closeModal();
     });
@@ -838,7 +882,53 @@ if (document.getElementById('mainContent')) {
         if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? parseFloat(el.value) || 0 : el.value);
       });
       
-      lifeLog[idx] = { ...lifeLog[idx], date: document.getElementById('editLogDate').value, data, updatedAt: Date.now() };
+      const date = document.getElementById('editLogDate').value;
+      if (type === 'meal' && data.addToFinance && (!data.amount || data.amount <= 0)) {
+        alert('Enter an amount to add to Finance.');
+        return;
+      }
+      
+      lifeLog[idx] = { ...lifeLog[idx], date, data, updatedAt: Date.now() };
+      
+      // Sync linked finance entry for meal/purchase
+      if (type === 'meal' || type === 'purchase') {
+        finance.transactions = finance.transactions || [];
+        const linkedIdx = finance.transactions.findIndex(tx => tx._lifeLogEntryId === entryId);
+        const addToFinance = data.addToFinance;
+        const amount = type === 'meal' ? (data.amount || 0) : (data.amount || 0);
+        
+        if (addToFinance && amount > 0) {
+          let desc = '';
+          if (type === 'meal') {
+            const parts = [data.meal];
+            if (data.restaurant) parts.push(`at ${data.restaurant}`);
+            desc = parts.join(' ');
+          } else {
+            desc = data.item + (data.store ? ` (${data.store})` : '');
+          }
+          const category = type === 'meal' ? 'Food' : (data.financeCategory || 'Shopping');
+          if (linkedIdx >= 0) {
+            finance.transactions[linkedIdx] = { ...finance.transactions[linkedIdx], description: desc, amount, category, date };
+          } else {
+            finance.transactions.push({
+              id: generateId(),
+              type: 'expense',
+              description: desc,
+              amount,
+              category,
+              date,
+              createdAt: Date.now(),
+              _fromLifeLog: type,
+              _lifeLogEntryId: entryId
+            });
+          }
+        } else if (linkedIdx >= 0) {
+          finance.transactions.splice(linkedIdx, 1);
+        }
+        saveToStorage(STORAGE_KEYS.finance, finance);
+        renderFinance();
+      }
+      
       saveToStorage(STORAGE_KEYS.lifeLog, lifeLog);
       renderCalendar();
       renderDayDetail();
@@ -848,6 +938,12 @@ if (document.getElementById('mainContent')) {
   };
   
   window.deleteEntry = (id) => {
+    // Remove linked finance entry if any
+    finance.transactions = finance.transactions || [];
+    finance.transactions = finance.transactions.filter(tx => tx._lifeLogEntryId !== id);
+    saveToStorage(STORAGE_KEYS.finance, finance);
+    if (document.getElementById('financeSection')) renderFinance();
+    
     lifeLog = lifeLog.filter(e => e.id !== id);
     saveToStorage(STORAGE_KEYS.lifeLog, lifeLog);
     renderCalendar();
@@ -891,13 +987,13 @@ if (document.getElementById('mainContent')) {
       const mainValue = (e.data[mainField] || 'Entry').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const details = t?.fields.slice(1, 5).filter(f => f.key !== 'repeat').map(f => e.data[f.key]).filter(Boolean).join(' · ');
       const repeatBadge = e.data.repeat && repeatLabelSingular[type] ? ` <span class="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">${repeatLabelSingular[type]}</span>` : '';
-      return `<div onclick="showEntryDetail('${e.id}'); closeModal();" class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
+      return `<div onclick="showEntryDetail('${e.id}')" class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
         <div class="flex-1 min-w-0">
           <p class="font-medium text-slate-900 dark:text-white">${mainValue}${repeatBadge}</p>
           <p class="text-sm text-slate-500 dark:text-slate-400">${details ? details + ' · ' : ''}${formatDateShort(e.date)}</p>
         </div>
         <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onclick="event.stopPropagation()">
-          <button onclick="openEditModal('${e.id}'); closeModal();" class="p-2 text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg" title="Edit"><i class="fas fa-pen text-xs"></i></button>
+          <button onclick="openEditModal('${e.id}')" class="p-2 text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg" title="Edit"><i class="fas fa-pen text-xs"></i></button>
           <button onclick="deleteEntry('${e.id}'); closeModal();" class="p-2 text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg" title="Delete"><i class="fas fa-trash text-xs"></i></button>
         </div>
         <i class="fas fa-chevron-right text-slate-400 text-sm ml-2"></i>
