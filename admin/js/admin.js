@@ -235,28 +235,41 @@ if (document.getElementById('loginForm')) {
         return;
       }
       document.getElementById('supabaseLoginForm')?.classList.remove('hidden');
+      if (new URLSearchParams(window.location.search).get('logout')) {
+        document.getElementById('loginEmail').value = '';
+        document.getElementById('loginPassword').value = '';
+        document.getElementById('loginDisplayName').value = '';
+        document.getElementById('loginError').classList.add('hidden');
+        window.history.replaceState({}, '', 'index.html');
+      }
       
       let isSignUpMode = false;
       const displayNameGroup = document.getElementById('displayNameGroup');
-      const signInBtn = document.getElementById('signInBtn');
-      const signUpBtn = document.getElementById('signUpBtn');
+      const primaryBtn = document.getElementById('primaryAuthBtn');
+      const secondaryBtn = document.getElementById('secondaryAuthBtn');
       
-      signUpBtn?.addEventListener('click', (e) => {
+      secondaryBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        isSignUpMode = true;
-        displayNameGroup?.classList.remove('hidden');
-        signInBtn.textContent = 'Create Account';
-        document.getElementById('signUpHint')?.classList.add('hidden');
-        document.getElementById('switchToSignIn')?.classList.remove('hidden');
-        document.getElementById('loginDisplayName')?.focus();
+        if (isSignUpMode) {
+          isSignUpMode = false;
+          displayNameGroup?.classList.add('hidden');
+          primaryBtn.textContent = 'Sign In';
+          secondaryBtn.textContent = 'Sign Up';
+          document.getElementById('signUpHint')?.classList.remove('hidden');
+          document.getElementById('switchToSignIn')?.classList.add('hidden');
+        } else {
+          isSignUpMode = true;
+          displayNameGroup?.classList.remove('hidden');
+          primaryBtn.textContent = 'Create Account';
+          secondaryBtn.textContent = 'Back';
+          document.getElementById('signUpHint')?.classList.add('hidden');
+          document.getElementById('switchToSignIn')?.classList.remove('hidden');
+          document.getElementById('loginDisplayName')?.focus();
+        }
       });
       document.getElementById('switchToSignIn')?.addEventListener('click', (e) => {
         e.preventDefault();
-        isSignUpMode = false;
-        displayNameGroup?.classList.add('hidden');
-        signInBtn.textContent = 'Sign In';
-        document.getElementById('signUpHint')?.classList.remove('hidden');
-        document.getElementById('switchToSignIn')?.classList.add('hidden');
+        secondaryBtn?.click();
       });
       
       document.getElementById('togglePassword')?.addEventListener('click', function() {
@@ -396,7 +409,7 @@ if (document.getElementById('mainContent')) {
       ['tasks','goals','habits','finance','journal','lifeLog'].forEach(d => localStorage.removeItem('lifeErp_' + d));
     }))();
     clearSession();
-    window.location.href = 'index.html';
+    window.location.href = 'index.html?logout=1';
   };
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.getElementById('logoutSettings')?.addEventListener('click', handleLogout);
