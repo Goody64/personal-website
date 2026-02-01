@@ -484,7 +484,7 @@ if (document.getElementById('mainContent')) {
         <h3 class="text-lg font-bold text-slate-900 dark:text-white">${dateLabel}</h3>
         <button onclick="openLogModal()" class="px-3 py-1.5 gradient-bg text-white text-sm rounded-lg"><i class="fas fa-plus mr-1"></i>Log</button>
       </div>
-      <div class="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
+      <div class="space-y-4 overflow-y-auto overscroll-contain pr-2" style="max-height: 400px;">
     `;
     
     Object.entries(groupedByType).forEach(([type, typeEntries]) => {
@@ -494,19 +494,18 @@ if (document.getElementById('mainContent')) {
         // Smart grouping for TV
         const grouped = groupTVEpisodes(entries);
         grouped.forEach(g => {
+          const showEsc = (g.show || '').replace(/'/g, "\\'");
           html += `
-            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
+            <div onclick="showEntriesDetail('${type}', '${showEsc}', '${selectedDate}')" class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: ${t.color}20">
+                <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
                   <i class="fas ${t.icon}" style="color: ${t.color}"></i>
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="font-medium text-slate-900 dark:text-white">${g.show}</p>
-                  <p class="text-sm text-slate-500 dark:text-slate-400">${g.season} ${g.episodeRange} · ${g.count} episode${g.count > 1 ? 's' : ''}</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">${g.season} ${g.episodeRange} · ${g.count} episode${g.count > 1 ? 's' : ''}${g.hasNotes ? ' · <i class="fas fa-sticky-note text-xs"></i>' : ''}</p>
                 </div>
-                <button onclick="showEntriesDetail('${type}', '${g.show}', '${selectedDate}')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                  <i class="fas fa-chevron-right"></i>
-                </button>
+                <i class="fas fa-chevron-right text-slate-400 text-sm flex-shrink-0"></i>
               </div>
             </div>
           `;
@@ -521,19 +520,18 @@ if (document.getElementById('mainContent')) {
         });
         
         Object.entries(gameGroups).forEach(([game, data]) => {
+          const gameEsc = (game || '').replace(/'/g, "\\'");
           html += `
-            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
+            <div onclick="showEntriesDetail('${type}', '${gameEsc}', '${selectedDate}')" class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: ${t.color}20">
+                <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
                   <i class="fas ${t.icon}" style="color: ${t.color}"></i>
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="font-medium text-slate-900 dark:text-white">${game}</p>
                   <p class="text-sm text-slate-500 dark:text-slate-400">${data.entries.length} session${data.entries.length > 1 ? 's' : ''}${data.duration ? ` · ${Math.round(data.duration / 60 * 10) / 10}h` : ''}</p>
                 </div>
-                <button onclick="deleteEntry('${data.entries[0].id}')" class="p-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100">
-                  <i class="fas fa-trash text-xs"></i>
-                </button>
+                <i class="fas fa-chevron-right text-slate-400 text-sm flex-shrink-0"></i>
               </div>
             </div>
           `;
@@ -542,22 +540,25 @@ if (document.getElementById('mainContent')) {
         // Individual entries for other types
         typeEntries.forEach(e => {
           const mainField = t.fields[0]?.key;
-          const mainValue = e.data[mainField] || 'Entry';
+          const mainValue = (e.data[mainField] || 'Entry').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
           const secondaryInfo = t.fields.slice(1, 3).map(f => e.data[f.key]).filter(Boolean).join(' · ');
+          const hasNotes = e.data.notes || (t.fields.some(f => f.key === 'content') && e.data.content);
           
           html += `
-            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 group">
+            <div onclick="showEntryDetail('${e.id}')" class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: ${t.color}20">
+                <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
                   <i class="fas ${t.icon}" style="color: ${t.color}"></i>
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="font-medium text-slate-900 dark:text-white">${mainValue}</p>
                   ${secondaryInfo ? `<p class="text-sm text-slate-500 dark:text-slate-400">${secondaryInfo}</p>` : ''}
                 </div>
-                <button onclick="deleteEntry('${e.id}')" class="p-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <i class="fas fa-trash text-xs"></i>
-                </button>
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onclick="event.stopPropagation()">
+                  <button onclick="openEditModal('${e.id}')" class="p-2 text-blue-400 hover:text-blue-600 rounded-lg" title="Edit"><i class="fas fa-pen text-xs"></i></button>
+                  <button onclick="deleteEntry('${e.id}')" class="p-2 text-red-400 hover:text-red-600 rounded-lg" title="Delete"><i class="fas fa-trash text-xs"></i></button>
+                </div>
+                ${hasNotes ? '<i class="fas fa-chevron-right text-slate-400 text-sm"></i>' : ''}
               </div>
             </div>
           `;
@@ -577,27 +578,56 @@ if (document.getElementById('mainContent')) {
     });
     
     const t = ACTIVITY_TYPES[type];
-    let html = `<div class="space-y-3">`;
+    let html = `<div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2">`;
     entries.forEach(e => {
       let detail = '';
       if (type === 'tv') detail = `S${e.data.season || 1} E${e.data.episode || 1}`;
       else detail = t.fields.slice(1).map(f => e.data[f.key]).filter(Boolean).join(' · ');
       
       html += `
-        <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-          <div>
+        <div class="flex items-start justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg group">
+          <div class="flex-1 min-w-0 cursor-pointer" onclick="openEditModal('${e.id}')">
             <p class="font-medium text-slate-900 dark:text-white">${detail}</p>
-            ${e.data.notes ? `<p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${e.data.notes}</p>` : ''}
+            ${e.data.notes ? `<p class="text-sm text-slate-500 dark:text-slate-400 mt-1 whitespace-pre-wrap">${String(e.data.notes).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>` : ''}
           </div>
-          <button onclick="deleteEntry('${e.id}'); closeModal();" class="p-2 text-red-400 hover:text-red-600">
-            <i class="fas fa-trash text-xs"></i>
-          </button>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            <button onclick="openEditModal('${e.id}'); closeModal();" class="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg" title="Edit"><i class="fas fa-pen text-xs"></i></button>
+            <button onclick="deleteEntry('${e.id}'); closeModal();" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg" title="Delete"><i class="fas fa-trash text-xs"></i></button>
+          </div>
         </div>
       `;
     });
     html += '</div>';
     
     openModal(`${groupKey} - ${formatDateShort(date)}`, html);
+  };
+  
+  window.showEntryDetail = (id) => {
+    const e = lifeLog.find(x => x.id === id);
+    if (!e) return;
+    const t = ACTIVITY_TYPES[e.type];
+    const mainField = t?.fields[0]?.key;
+    const mainValue = e.data[mainField] || 'Entry';
+    const details = t?.fields.slice(1).map(f => ({ label: f.label, value: e.data[f.key] })).filter(d => d.value !== undefined && d.value !== '') || [];
+    
+    let html = `
+      <div class="space-y-4">
+        <div class="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+          <p class="font-semibold text-slate-900 dark:text-white text-lg">${String(mainValue).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${t?.name || e.type} · ${formatDateShort(e.date)}</p>
+        </div>
+        ${details.length ? `<div class="space-y-2">${details.map(d => `
+          <div><span class="text-xs text-slate-500 dark:text-slate-400">${d.label}</span><p class="text-sm text-slate-900 dark:text-white">${String(d.value).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>
+        `).join('')}</div>` : ''}
+        ${e.data.notes ? `<div><span class="text-xs text-slate-500 dark:text-slate-400">Notes</span><p class="text-sm text-slate-700 dark:text-slate-300 mt-1 whitespace-pre-wrap">${String(e.data.notes).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>` : ''}
+        ${e.data.content ? `<div><span class="text-xs text-slate-500 dark:text-slate-400">Content</span><p class="text-sm text-slate-700 dark:text-slate-300 mt-1 whitespace-pre-wrap">${String(e.data.content).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>` : ''}
+        <div class="flex gap-2 pt-2">
+          <button onclick="openEditModal('${e.id}'); closeModal();" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><i class="fas fa-pen mr-2"></i>Edit</button>
+          <button onclick="deleteEntry('${e.id}'); closeModal();" class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50"><i class="fas fa-trash mr-2"></i>Delete</button>
+        </div>
+      </div>
+    `;
+    openModal(mainValue, html);
   };
   
   // ========================================
@@ -672,6 +702,85 @@ if (document.getElementById('mainContent')) {
   };
   
   window.openLogModal = openLogModal;
+  
+  window.openEditModal = (id) => {
+    const entry = lifeLog.find(e => e.id === id);
+    if (!entry) return;
+    
+    const t = ACTIVITY_TYPES[entry.type];
+    const typeOptions = Object.entries(ACTIVITY_TYPES).map(([tid, type]) => 
+      `<option value="${tid}" ${entry.type === tid ? 'selected' : ''}>${type.name}</option>`
+    ).join('');
+    
+    openModal('Edit Entry', `
+      <form id="editLogForm" class="space-y-4">
+        <input type="hidden" id="editEntryId" value="${entry.id}">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
+          <select id="editLogType" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm" disabled>
+            ${typeOptions}
+          </select>
+        </div>
+        <div id="editDynamicFields"></div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
+          <input type="date" id="editLogDate" value="${entry.date}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+        </div>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg">
+          <i class="fas fa-save mr-2"></i>Save Changes
+        </button>
+      </form>
+    `);
+    
+    const renderFields = () => {
+      const type = entry.type;
+      const t = ACTIVITY_TYPES[type];
+      const data = entry.data;
+      document.getElementById('editDynamicFields').innerHTML = t.fields.map(f => {
+        const val = data[f.key];
+        const valStr = val === undefined || val === null ? '' : String(val);
+        if (f.type === 'select') {
+          return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
+            <select id="edit_field_${f.key}" ${f.required ? 'required' : ''} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+              ${f.options.map(o => `<option value="${o}" ${valStr === o ? 'selected' : ''}>${o}</option>`).join('')}
+            </select></div>`;
+        } else if (f.type === 'textarea') {
+          return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
+            <textarea id="edit_field_${f.key}" rows="2" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">${valStr.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea></div>`;
+        } else if (f.type === 'checkbox') {
+          return `<div class="flex items-center gap-2"><input type="checkbox" id="edit_field_${f.key}" ${val ? 'checked' : ''} class="w-4 h-4 rounded">
+            <label class="text-sm font-medium text-slate-700 dark:text-slate-300">${f.label}</label></div>`;
+        } else {
+          return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
+            <input type="${f.type}" id="edit_field_${f.key}" ${f.required ? 'required' : ''} value="${valStr.replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>`;
+        }
+      }).join('');
+    };
+    
+    renderFields();
+    
+    document.getElementById('editLogForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const entryId = document.getElementById('editEntryId').value;
+      const idx = lifeLog.findIndex(x => x.id === entryId);
+      if (idx === -1) return;
+      
+      const type = lifeLog[idx].type;
+      const t = ACTIVITY_TYPES[type];
+      const data = {};
+      t.fields.forEach(f => {
+        const el = document.getElementById(`edit_field_${f.key}`);
+        if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? parseFloat(el.value) || 0 : el.value);
+      });
+      
+      lifeLog[idx] = { ...lifeLog[idx], date: document.getElementById('editLogDate').value, data, updatedAt: Date.now() };
+      saveToStorage(STORAGE_KEYS.lifeLog, lifeLog);
+      renderCalendar();
+      renderDayDetail();
+      updateStats();
+      closeModal();
+    });
+  };
   
   window.deleteEntry = (id) => {
     lifeLog = lifeLog.filter(e => e.id !== id);
