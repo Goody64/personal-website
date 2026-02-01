@@ -114,7 +114,23 @@ const ACTIVITY_TYPES = {
     fields: [
       { key: 'title', label: 'Title', type: 'text', required: true },
       { key: 'content', label: 'Content', type: 'textarea' }
+    ]},
+  work: { name: 'Work', icon: 'fa-briefcase', color: '#475569', plural: 'sessions',
+    fields: [
+      { key: 'category', label: 'Category', type: 'select', options: ['Job', 'School', 'Personal'], required: true },
+      { key: 'subtype', label: 'Subtype', type: 'select', options: [], required: true },
+      { key: 'title', label: 'What you worked on', type: 'text', required: true },
+      { key: 'project', label: 'Project / Course', type: 'text' },
+      { key: 'duration', label: 'Duration (min)', type: 'number' },
+      { key: 'notes', label: 'Notes', type: 'textarea' }
     ]}
+};
+
+// Work subtypes per category (used for dynamic subtype options)
+const WORK_SUBTYPES = {
+  Job: ['Meeting', 'Coding', 'Admin', 'Email', 'Review', 'Planning', 'Documentation', 'Interview', 'Other'],
+  School: ['Assignment', 'Exam', 'Lecture', 'Study', 'Reading', 'Lab', 'Research', 'Group project', 'Other'],
+  Personal: ['Side project', 'Hobby', 'Research', 'Learning', 'Building', 'Writing', 'Design', 'Other']
 };
 
 // ========================================
@@ -669,11 +685,14 @@ if (document.getElementById('mainContent')) {
     const updateFields = () => {
       const type = document.getElementById('logType').value;
       const t = ACTIVITY_TYPES[type];
+      const category = document.getElementById('field_category')?.value || 'Job';
       document.getElementById('dynamicFields').innerHTML = t.fields.map(f => {
         if (f.type === 'select') {
+          let opts = f.options;
+          if (type === 'work' && f.key === 'subtype') opts = WORK_SUBTYPES[category] || WORK_SUBTYPES.Job;
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
             <select id="field_${f.key}" ${f.required ? 'required' : ''} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-              ${f.options.map(o => `<option value="${o}">${o}</option>`).join('')}
+              ${opts.map(o => `<option value="${o}">${o}</option>`).join('')}
             </select></div>`;
         } else if (f.type === 'textarea') {
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
@@ -690,6 +709,17 @@ if (document.getElementById('mainContent')) {
     
     document.getElementById('logType').addEventListener('change', updateFields);
     updateFields();
+    
+    document.getElementById('dynamicFields').addEventListener('change', (e) => {
+      if (e.target.id === 'field_category' && document.getElementById('logType').value === 'work') {
+        const cat = e.target.value;
+        const sub = document.getElementById('field_subtype');
+        if (sub) {
+          const opts = WORK_SUBTYPES[cat] || WORK_SUBTYPES.Job;
+          sub.innerHTML = opts.map(o => `<option value="${o}">${o}</option>`).join('');
+        }
+      }
+    });
     
     document.getElementById('logForm').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -749,9 +779,11 @@ if (document.getElementById('mainContent')) {
         const val = data[f.key];
         const valStr = val === undefined || val === null ? '' : String(val);
         if (f.type === 'select') {
+          let opts = f.options;
+          if (type === 'work' && f.key === 'subtype') opts = WORK_SUBTYPES[data.category] || WORK_SUBTYPES.Job;
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
             <select id="edit_field_${f.key}" ${f.required ? 'required' : ''} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-              ${f.options.map(o => `<option value="${o}" ${valStr === o ? 'selected' : ''}>${o}</option>`).join('')}
+              ${opts.map(o => `<option value="${o}" ${valStr === o ? 'selected' : ''}>${o}</option>`).join('')}
             </select></div>`;
         } else if (f.type === 'textarea') {
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
@@ -767,6 +799,20 @@ if (document.getElementById('mainContent')) {
     };
     
     renderFields();
+    
+    if (entry.type === 'work') {
+      document.getElementById('editDynamicFields').addEventListener('change', (e) => {
+        if (e.target.id === 'edit_field_category') {
+          const cat = e.target.value;
+          const sub = document.getElementById('edit_field_subtype');
+          if (sub) {
+            const opts = WORK_SUBTYPES[cat] || WORK_SUBTYPES.Job;
+            const cur = sub.value;
+            sub.innerHTML = opts.map(o => `<option value="${o}" ${cur === o ? 'selected' : ''}>${o}</option>`).join('');
+          }
+        }
+      });
+    }
     
     document.getElementById('editLogForm').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -963,8 +1009,52 @@ if (document.getElementById('mainContent')) {
         `;
       });
       html += '</div>';
+    } else if (type === 'work') {
+      // Group by category, then by subtype
+      const byCategory = { Job: [], School: [], Personal: [] };
+      entries.forEach(e => {
+        const cat = e.data.category || 'Job';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push(e);
+      });
+      
+      html = `<div class="space-y-6">`;
+      ['Job', 'School', 'Personal'].forEach(cat => {
+        const list = byCategory[cat] || [];
+        if (list.length === 0) return;
+        const bySubtype = {};
+        list.forEach(e => {
+          const sub = e.data.subtype || 'Other';
+          if (!bySubtype[sub]) bySubtype[sub] = [];
+          bySubtype[sub].push(e);
+        });
+        html += `
+          <div>
+            <h3 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">${cat}</h3>
+            <div class="space-y-3">
+              ${Object.entries(bySubtype).sort((a, b) => b[1].length - a[1].length).map(([sub, items]) => {
+                const subMins = items.reduce((s, e) => s + (e.data.duration || 0), 0);
+                return `
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                  <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
+                      <i class="fas ${t.icon}" style="color: ${t.color}"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <h4 class="font-semibold text-slate-900 dark:text-white">${sub}</h4>
+                      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${items.length} session${items.length !== 1 ? 's' : ''}${subMins ? ` · ${Math.round(subMins / 60 * 10) / 10}h` : ''}</p>
+                      <p class="text-xs text-slate-400 mt-2">${items.slice(0, 2).map(e => e.data.title).join(', ')}${items.length > 2 ? '...' : ''}</p>
+                    </div>
+                  </div>
+                </div>
+              `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
     } else if (type === 'movie') {
-      // List all movies
       const sorted = entries.sort((a, b) => new Date(b.date) - new Date(a.date));
       html = `<div class="space-y-4">`;
       sorted.forEach(e => {
