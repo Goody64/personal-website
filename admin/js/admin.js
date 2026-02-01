@@ -236,6 +236,29 @@ if (document.getElementById('loginForm')) {
       }
       document.getElementById('supabaseLoginForm')?.classList.remove('hidden');
       
+      let isSignUpMode = false;
+      const displayNameGroup = document.getElementById('displayNameGroup');
+      const signInBtn = document.getElementById('signInBtn');
+      const signUpBtn = document.getElementById('signUpBtn');
+      
+      signUpBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        isSignUpMode = true;
+        displayNameGroup?.classList.remove('hidden');
+        signInBtn.textContent = 'Create Account';
+        document.getElementById('signUpHint')?.classList.add('hidden');
+        document.getElementById('switchToSignIn')?.classList.remove('hidden');
+        document.getElementById('loginDisplayName')?.focus();
+      });
+      document.getElementById('switchToSignIn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        isSignUpMode = false;
+        displayNameGroup?.classList.add('hidden');
+        signInBtn.textContent = 'Sign In';
+        document.getElementById('signUpHint')?.classList.remove('hidden');
+        document.getElementById('switchToSignIn')?.classList.add('hidden');
+      });
+      
       document.getElementById('togglePassword')?.addEventListener('click', function() {
         const pw = document.getElementById('loginPassword');
         pw.type = pw.type === 'password' ? 'text' : 'password';
@@ -252,16 +275,20 @@ if (document.getElementById('loginForm')) {
       document.getElementById('supabaseLoginForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const err = document.getElementById('loginError');
-        const { error } = await window.dataService.signIn(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
-        if (error) showAuthError(err, error.message);
-        else window.location.href = 'dashboard.html';
-      });
-      
-      document.getElementById('signUpBtn')?.addEventListener('click', async () => {
-        const err = document.getElementById('loginError');
-        const { error } = await window.dataService.signUp(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
-        if (error) showAuthError(err, error.message);
-        else window.location.href = 'dashboard.html';
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+        const displayName = document.getElementById('loginDisplayName')?.value?.trim();
+        
+        if (isSignUpMode) {
+          if (!displayName) { err.textContent = 'Display name is required for sign up'; err.classList.remove('hidden'); return; }
+          const { error } = await window.dataService.signUp(email, password, displayName);
+          if (error) showAuthError(err, error.message);
+          else window.location.href = 'dashboard.html';
+        } else {
+          const { error } = await window.dataService.signIn(email, password);
+          if (error) showAuthError(err, error.message);
+          else window.location.href = 'dashboard.html';
+        }
       });
     } else {
       document.getElementById('directAccess')?.classList.remove('hidden');
@@ -284,6 +311,17 @@ if (document.getElementById('mainContent')) {
       window.location.href = 'index.html';
       return;
     }
+    const displayName = session.user?.user_metadata?.display_name || session.user?.email?.split('@')[0] || 'User';
+    const email = session.user?.email || '';
+    const initials = displayName.split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase() || (email[0] || '?').toUpperCase();
+    document.getElementById('userDisplayName').textContent = displayName;
+    document.getElementById('userInitials').textContent = initials;
+    document.getElementById('userEmail').textContent = email;
+    document.getElementById('welcomeText').textContent = `Welcome back, ${displayName}! Here's your life at a glance.`;
+  } else {
+    document.getElementById('userDisplayName').textContent = 'Local';
+    document.getElementById('userInitials').textContent = 'L';
+    document.getElementById('userEmail').textContent = 'No account';
   }
   
   let data = null;
@@ -340,7 +378,7 @@ if (document.getElementById('mainContent')) {
     // Render section-specific content
     if (id === 'lifelog') { renderCalendar(); renderDayDetail(); }
     if (id === 'library') renderLibrary();
-    if (id === 'settings') updateCloudSyncStatus();
+    if (id === 'settings') { updateCloudSyncStatus(); updateProfileSection(); }
   };
   window.showSection = showSection;
   
@@ -1777,6 +1815,38 @@ if (document.getElementById('mainContent')) {
   renderDayDetail();
   updateStats();
 
+  // Profile section (Settings page)
+  const updateProfileSection = async () => {
+    const nameEl = document.getElementById('profileDisplayName');
+    const emailEl = document.getElementById('profileEmail');
+    const saveBtn = document.getElementById('saveDisplayName');
+    if (!nameEl || !emailEl) return;
+    const session = await window.dataService?.getSession?.();
+    if (session?.user) {
+      const displayName = session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || '';
+      nameEl.value = displayName;
+      emailEl.value = session.user.email || '';
+      nameEl.disabled = false;
+      saveBtn.style.display = '';
+      saveBtn.onclick = async () => {
+        const name = nameEl.value.trim();
+        if (!name) return;
+        const { error } = await window.dataService?.updateDisplayName?.(name);
+        if (error) alert('Failed to update: ' + error.message);
+        else {
+          document.getElementById('userDisplayName').textContent = name;
+          document.getElementById('userInitials').textContent = name.split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase() || name[0].toUpperCase();
+          document.getElementById('welcomeText').textContent = `Welcome back, ${name}! Here's your life at a glance.`;
+        }
+      };
+    } else {
+      nameEl.value = '';
+      emailEl.value = 'Local mode';
+      nameEl.disabled = true;
+      saveBtn.style.display = 'none';
+    }
+  };
+
   // Cloud sync status (Settings page)
   const updateCloudSyncStatus = async () => {
     const el = document.getElementById('cloudSyncStatus');
@@ -1834,11 +1904,12 @@ if (document.getElementById('mainContent')) {
     const renderCloudUI = async () => {
       const signedIn = await window.dataService.getSession();
       if (signedIn) {
-        const email = signedIn.user?.email || 'Signed in';
+        const displayName = signedIn.user?.user_metadata?.display_name || signedIn.user?.email?.split('@')[0] || 'Signed in';
+        const email = signedIn.user?.email || '';
         cloudEl.innerHTML = `
           <div class="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-xl text-sm">
             <i class="fas fa-cloud text-emerald-500"></i>
-            <span class="hidden sm:inline truncate max-w-[120px]" title="${email}">${email}</span>
+            <span class="hidden sm:inline truncate max-w-[120px]" title="${email}">${displayName}</span>
             <button id="cloudSignOut" class="p-1 hover:bg-emerald-200 dark:hover:bg-emerald-800/50 rounded" title="Sign out"><i class="fas fa-sign-out-alt text-xs"></i></button>
           </div>
         `;
@@ -1876,7 +1947,7 @@ if (document.getElementById('mainContent')) {
         const email = document.getElementById('cloudEmail').value;
         const password = document.getElementById('cloudPassword').value;
         const err = document.getElementById('cloudAuthError');
-        const { error } = isSignUp ? await window.dataService.signUp(email, password) : await window.dataService.signIn(email, password);
+        const { error } = isSignUp ? await window.dataService.signUp(email, password, email.split('@')[0]) : await window.dataService.signIn(email, password);
         if (error) {
           err.textContent = /rate limit|rate_limit|email.*exceed/i.test(error.message)
             ? 'Email rate limit. Disable "Confirm email" in Supabase (Auth → Providers → Email).'

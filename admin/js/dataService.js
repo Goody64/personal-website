@@ -88,11 +88,24 @@ const dataService = {
     return { data, error };
   },
 
-  async signUp(email, password) {
+  async signUp(email, password, displayName) {
     if (!this._supabase) return { error: new Error('Supabase not configured') };
     const redirectTo = typeof window !== 'undefined' ? (window.location.href.replace(/[^/]*$/, '') + 'dashboard.html') : undefined;
-    const { data, error } = await this._supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } });
+    const { data, error } = await this._supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { display_name: displayName || email.split('@')[0] },
+        emailRedirectTo: redirectTo
+      }
+    });
     if (!error) this._useCloud = true;
+    return { data, error };
+  },
+
+  async updateDisplayName(name) {
+    if (!this._supabase) return { error: new Error('Supabase not configured') };
+    const { data, error } = await this._supabase.auth.updateUser({ data: { display_name: name } });
     return { data, error };
   },
 

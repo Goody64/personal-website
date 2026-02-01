@@ -17,7 +17,7 @@ ALTER TABLE user_data ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can read own data" ON user_data
   FOR SELECT USING (auth.uid() = user_id);
 
--- Users can insert their own data
+-- Users can insert their own data 
 CREATE POLICY "Users can insert own data" ON user_data
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
