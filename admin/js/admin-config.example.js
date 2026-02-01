@@ -9,8 +9,8 @@
 // 3. Never commit admin-config.js
 
 const AUTH_CONFIG = {
-  username: 'goody',
-  password: 'goatcob',
+  username: 'username',
+  password: 'password',
   sessionKey: 'lifeErp_session',
   sessionDuration: 24 * 60 * 60 * 1000 // 24 hours
 };
