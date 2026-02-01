@@ -8,6 +8,57 @@ This document outlines how to evolve Life ERP from localStorage to a real backen
 
 ---
 
+## Schema-Flexible Storage (Recommended)
+
+**Goal**: Store everything without tying the DB to your schema. Add new activity types, change fields, rename things—zero migrations.
+
+### Approach: Blob-per-domain
+
+Store each "domain" as a **single JSON blob**. The DB has no idea what's inside. Your app defines the shape; the DB just stores it.
+
+| Domain   | What it stores                          | Shape (you define) |
+|----------|-----------------------------------------|--------------------|
+| lifeLog  | All activity entries                    | `[{ id, type, date, data, ... }]` |
+| finance  | Transactions + metadata                 | `{ transactions: [...] }` |
+| journal  | Journal entries                         | `[{ id, title, content, date }]` |
+| tasks    | Tasks                                   | `[{ id, title, ... }]` |
+| goals    | Goals                                   | `[{ id, title, ... }]` |
+| habits   | Habits                                  | `[{ id, name, ... }]` |
+
+**DB schema (minimal):**
+
+```sql
+-- One table. That's it.
+CREATE TABLE user_data (
+  user_id TEXT PRIMARY KEY,
+  domain TEXT NOT NULL,
+  data JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, domain)
+);
+```
+
+**Example rows:**
+```
+user_id | domain  | data
+--------|---------|--------------------------------------------------
+abc123  | lifeLog | [{"id":"x","type":"meal","date":"2025-01-31","data":{...}}]
+abc123  | finance | {"transactions":[{"id":"y","type":"expense","amount":12.47}]}
+abc123  | journal | [{"id":"z","title":"Day 1","content":"..."}]
+```
+
+**Why this works:**
+- Add a new activity type (e.g. `podcast`)? Just add it to `ACTIVITY_TYPES` in your app. No DB change.
+- Change meal fields? Update the form. Stored JSON adapts.
+- Rename `repeat` to `rewatchCount`? Migrate in app code or on load; DB doesn't care.
+- The DB never validates structure—it's opaque JSON.
+
+**Supabase**: Use a single `user_data` table as above. `data` is JSONB.
+**Firebase**: `users/{userId}/data/{domain}` documents. Each document = one domain's blob.
+**Vercel KV / Upstash**: Key = `{userId}:{domain}`, value = JSON string.
+
+---
+
 ## Phase 1: Add a Backend API
 
 ### Option A: Supabase (Recommended for speed)
@@ -32,25 +83,43 @@ This document outlines how to evolve Life ERP from localStorage to a real backen
 
 ## Phase 2: Data Layer Abstraction
 
-Create a `dataService.js` that hides storage:
+Create a `dataService.js` that hides storage. Same interface whether you use localStorage or a backend:
 
 ```javascript
-// dataService.js - switch implementation without changing app code
+// dataService.js - swap implementation without changing app code
+const DOMAINS = ['lifeLog', 'finance', 'journal', 'tasks', 'goals', 'habits'];
+const STORAGE_PREFIX = 'lifeErp_';
+
 const dataService = {
-  async getLifeLog() {
-    if (USE_BACKEND) return api.get('/life-log');
-    return JSON.parse(localStorage.getItem('lifeErp_lifeLog') || '[]');
+  async get(domain) {
+    if (USE_BACKEND) {
+      const res = await fetch(`/api/data/${domain}`);
+      const row = await res.json();
+      return row?.data ?? getDefault(domain);
+    }
+    return getFromStorage(STORAGE_PREFIX + domain) ?? getDefault(domain);
   },
-  async saveLifeLog(data) {
-    if (USE_BACKEND) return api.post('/life-log', data);
-    localStorage.setItem('lifeErp_lifeLog', JSON.stringify(data));
-  },
-  // ... same pattern for tasks, goals, habits, etc.
+  async save(domain, data) {
+    if (USE_BACKEND) {
+      await fetch(`/api/data/${domain}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    } else {
+      localStorage.setItem(STORAGE_PREFIX + domain, JSON.stringify(data));
+    }
+  }
 };
+
+function getDefault(domain) {
+  if (domain === 'finance') return { transactions: [] };
+  return [];
+}
 ```
 
 - **Benefit**: Swap localStorage for API calls without rewriting the app
-- **Migration**: Export from localStorage, POST to API, then flip `USE_BACKEND`
+- **Migration**: Export from localStorage, POST each domain to API, then flip `USE_BACKEND`
 
 ---
 
@@ -85,25 +154,6 @@ const dataService = {
 
 ---
 
-## Schema (for backend)
-
-```sql
--- life_log entries
-CREATE TABLE life_log (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  type TEXT NOT NULL,
-  date DATE NOT NULL,
-  data JSONB NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Similar tables for tasks, goals, habits, finance, journal
-```
-
----
-
 ## Auth
 
 - **Supabase/Firebase**: Built-in email/password, OAuth (Google, Apple)
@@ -115,5 +165,14 @@ CREATE TABLE life_log (
 ## Data Migration
 
 1. User clicks "Export" (already exists) → downloads JSON
-2. After backend is live: "Import to cloud" button → POST to API
+2. After backend is live: "Import to cloud" button → POST each domain to API
 3. Or: One-time migration script that reads localStorage and syncs to API
+
+---
+
+## TL;DR – Schema-Flexible Path
+
+1. **DB**: One table `user_data(user_id, domain, data JSONB)`. Store each domain (lifeLog, finance, etc.) as a blob.
+2. **App**: Define structure in `ACTIVITY_TYPES` and forms. DB never validates it.
+3. **Changes**: Add/rename/remove fields in app code only. No migrations.
+4. **Abstraction**: Add `dataService.js` so you can swap localStorage ↔ API without touching the rest of the app.

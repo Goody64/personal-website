@@ -25,17 +25,23 @@ jobs:
         env:
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           node -e "
             const fs = require('fs');
-            fs.writeFileSync('admin/js/admin-config.js',
-              'const AUTH_CONFIG = ' + JSON.stringify({
-                username: process.env.ADMIN_USERNAME,
-                password: process.env.ADMIN_PASSWORD,
-                sessionKey: 'lifeErp_session',
-                sessionDuration: 24 * 60 * 60 * 1000
-              }, null, 2) + ';'
-            );
+            const auth = {
+              username: process.env.ADMIN_USERNAME,
+              password: process.env.ADMIN_PASSWORD,
+              sessionKey: 'lifeErp_session',
+              sessionDuration: 24 * 60 * 60 * 1000
+            };
+            const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY)
+              ? { url: process.env.SUPABASE_URL, anonKey: process.env.SUPABASE_ANON_KEY }
+              : null;
+            const out = 'const AUTH_CONFIG = ' + JSON.stringify(auth, null, 2) + ';' +
+              (supabase ? '\\nconst SUPABASE_CONFIG = ' + JSON.stringify(supabase, null, 2) + ';' : '');
+            fs.writeFileSync('admin/js/admin-config.js', out);
           "
 
       - name: Setup Pages

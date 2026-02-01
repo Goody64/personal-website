@@ -2,7 +2,7 @@
 // Life ERP - Admin JavaScript
 // ========================================
 
-// Storage Keys
+// Storage Keys (dataService uses these for localStorage fallback)
 const STORAGE_KEYS = {
   tasks: 'lifeErp_tasks',
   goals: 'lifeErp_goals',
@@ -177,6 +177,15 @@ const saveToStorage = (key, data) => {
   try { localStorage.setItem(key, JSON.stringify(data)); return true; } 
   catch { return false; }
 };
+// Data service: uses Supabase when signed in, localStorage otherwise
+const loadData = async (domain) => {
+  if (window.dataService?.get) return await window.dataService.get(domain);
+  return getFromStorage(STORAGE_KEYS[domain] || 'lifeErp_' + domain);
+};
+const saveData = async (domain, data) => {
+  if (window.dataService?.save) await window.dataService.save(domain, data);
+  else saveToStorage(STORAGE_KEYS[domain] || 'lifeErp_' + domain, data);
+};
 
 // ========================================
 // Authentication
@@ -246,15 +255,18 @@ if (document.getElementById('loginForm')) {
 // Dashboard
 // ========================================
 if (document.getElementById('mainContent')) {
-  if (!checkSession()) window.location.href = 'index.html';
+  if (!checkSession()) { window.location.href = 'index.html'; } else {
+  (async () => {
+  await (window.dataService?.init?.() ?? Promise.resolve());
   
-  // Data
-  let tasks = getFromStorage(STORAGE_KEYS.tasks) || [];
-  let goals = getFromStorage(STORAGE_KEYS.goals) || [];
-  let habits = getFromStorage(STORAGE_KEYS.habits) || [];
-  let finance = getFromStorage(STORAGE_KEYS.finance) || { transactions: [] };
-  let journal = getFromStorage(STORAGE_KEYS.journal) || [];
-  let lifeLog = getFromStorage(STORAGE_KEYS.lifeLog) || [];
+  // Data (from cloud if signed in, else localStorage)
+  const data = window.dataService?.loadAll ? await window.dataService.loadAll() : null;
+  let tasks = data ? (data.tasks ?? []) : (getFromStorage(STORAGE_KEYS.tasks) || []);
+  let goals = data ? (data.goals ?? []) : (getFromStorage(STORAGE_KEYS.goals) || []);
+  let habits = data ? (data.habits ?? []) : (getFromStorage(STORAGE_KEYS.habits) || []);
+  let finance = data ? (data.finance ?? { transactions: [] }) : (getFromStorage(STORAGE_KEYS.finance) || { transactions: [] });
+  let journal = data ? (data.journal ?? []) : (getFromStorage(STORAGE_KEYS.journal) || []);
+  let lifeLog = data ? (data.lifeLog ?? []) : (getFromStorage(STORAGE_KEYS.lifeLog) || []);
   
   // State
   let currentDate = new Date();
@@ -794,11 +806,11 @@ if (document.getElementById('mainContent')) {
             _fromLifeLog: type,
             _lifeLogEntryId: entryId
           });
-          saveToStorage(STORAGE_KEYS.finance, finance);
+          saveData('finance', finance);
         }
       }
       
-      saveToStorage(STORAGE_KEYS.lifeLog, lifeLog);
+      saveData('lifeLog', lifeLog);
       renderCalendar();
       renderDayDetail();
       renderFinance();
@@ -941,11 +953,11 @@ if (document.getElementById('mainContent')) {
         } else if (linkedIdx >= 0) {
           finance.transactions.splice(linkedIdx, 1);
         }
-        saveToStorage(STORAGE_KEYS.finance, finance);
+        saveData('finance', finance);
         renderFinance();
       }
       
-      saveToStorage(STORAGE_KEYS.lifeLog, lifeLog);
+      saveData('lifeLog', lifeLog);
       renderCalendar();
       renderDayDetail();
       updateStats();
@@ -957,11 +969,11 @@ if (document.getElementById('mainContent')) {
     // Remove linked finance entry if any
     finance.transactions = finance.transactions || [];
     finance.transactions = finance.transactions.filter(tx => tx._lifeLogEntryId !== id);
-    saveToStorage(STORAGE_KEYS.finance, finance);
+    saveData('finance', finance);
     if (document.getElementById('financeSection')) renderFinance();
     
     lifeLog = lifeLog.filter(e => e.id !== id);
-    saveToStorage(STORAGE_KEYS.lifeLog, lifeLog);
+    saveData('lifeLog', lifeLog);
     renderCalendar();
     renderDayDetail();
     updateStats();
@@ -1397,7 +1409,7 @@ if (document.getElementById('mainContent')) {
     document.getElementById('taskBadge').textContent = todoList.length + progressList.length;
   };
   
-  window.deleteTask = (id) => { tasks = tasks.filter(t => t.id !== id); saveToStorage(STORAGE_KEYS.tasks, tasks); renderTasks(); };
+  window.deleteTask = (id) => { tasks = tasks.filter(t => t.id !== id); saveData('tasks', tasks); renderTasks(); };
   
   const addTaskModal = () => {
     openModal('Add Task', `
@@ -1418,7 +1430,7 @@ if (document.getElementById('mainContent')) {
     document.getElementById('taskForm').addEventListener('submit', (e) => {
       e.preventDefault();
       tasks.push({ id: generateId(), title: document.getElementById('taskTitle').value, description: document.getElementById('taskDesc').value, status: document.getElementById('taskStatus').value, dueDate: document.getElementById('taskDue').value, createdAt: Date.now() });
-      saveToStorage(STORAGE_KEYS.tasks, tasks); renderTasks(); updateStats(); closeModal();
+      saveData('tasks', tasks); renderTasks(); updateStats(); closeModal();
     });
   };
   document.getElementById('addTaskBtn')?.addEventListener('click', addTaskModal);
@@ -1459,7 +1471,7 @@ if (document.getElementById('mainContent')) {
     `).join('');
   };
   
-  window.deleteGoal = (id) => { goals = goals.filter(g => g.id !== id); saveToStorage(STORAGE_KEYS.goals, goals); renderGoals(); };
+  window.deleteGoal = (id) => { goals = goals.filter(g => g.id !== id); saveData('goals', goals); renderGoals(); };
   
   window.addGoalModal = () => {
     openModal('Add Goal', `
@@ -1478,7 +1490,7 @@ if (document.getElementById('mainContent')) {
     document.getElementById('goalForm').addEventListener('submit', (e) => {
       e.preventDefault();
       goals.push({ id: generateId(), title: document.getElementById('goalTitle').value, category: document.getElementById('goalCategory').value, description: document.getElementById('goalDesc').value, progress: 0, createdAt: Date.now() });
-      saveToStorage(STORAGE_KEYS.goals, goals); renderGoals(); closeModal();
+      saveData('goals', goals); renderGoals(); closeModal();
     });
   };
   document.getElementById('addGoalBtn')?.addEventListener('click', addGoalModal);
@@ -1516,7 +1528,7 @@ if (document.getElementById('mainContent')) {
     `).join('')}</div>`;
   };
   
-  window.deleteHabit = (id) => { habits = habits.filter(h => h.id !== id); saveToStorage(STORAGE_KEYS.habits, habits); renderHabits(); };
+  window.deleteHabit = (id) => { habits = habits.filter(h => h.id !== id); saveData('habits', habits); renderHabits(); };
   
   window.addHabitModal = () => {
     openModal('Add Habit', `
@@ -1535,7 +1547,7 @@ if (document.getElementById('mainContent')) {
     document.getElementById('habitForm').addEventListener('submit', (e) => {
       e.preventDefault();
       habits.push({ id: generateId(), name: document.getElementById('habitName').value, frequency: document.getElementById('habitFreq').value, color: document.getElementById('habitColor').value, streak: 0, createdAt: Date.now() });
-      saveToStorage(STORAGE_KEYS.habits, habits); renderHabits(); closeModal();
+      saveData('habits', habits); renderHabits(); closeModal();
     });
   };
   document.getElementById('addHabitBtn')?.addEventListener('click', addHabitModal);
@@ -1575,7 +1587,7 @@ if (document.getElementById('mainContent')) {
     `).join('');
   };
   
-  window.deleteTxn = (id) => { finance.transactions = finance.transactions.filter(t => t.id !== id); saveToStorage(STORAGE_KEYS.finance, finance); renderFinance(); };
+  window.deleteTxn = (id) => { finance.transactions = finance.transactions.filter(t => t.id !== id); saveData('finance', finance); renderFinance(); };
   
   document.getElementById('addTransactionBtn')?.addEventListener('click', () => {
     openModal('Add Transaction', `
@@ -1600,7 +1612,7 @@ if (document.getElementById('mainContent')) {
     document.getElementById('txnForm').addEventListener('submit', (e) => {
       e.preventDefault();
       finance.transactions.push({ id: generateId(), type: document.getElementById('txnType').value, description: document.getElementById('txnDesc').value, amount: parseAmount(document.getElementById('txnAmount').value), category: document.getElementById('txnCat').value, date: document.getElementById('txnDate').value, createdAt: Date.now() });
-      saveToStorage(STORAGE_KEYS.finance, finance); renderFinance(); closeModal();
+      saveData('finance', finance); renderFinance(); closeModal();
     });
   });
   
@@ -1634,7 +1646,7 @@ if (document.getElementById('mainContent')) {
     `).join('')}</div>`;
   };
   
-  window.deleteJournal = (id) => { journal = journal.filter(j => j.id !== id); saveToStorage(STORAGE_KEYS.journal, journal); renderJournal(); };
+  window.deleteJournal = (id) => { journal = journal.filter(j => j.id !== id); saveData('journal', journal); renderJournal(); };
   
   window.addJournalModal = () => {
     openModal('New Journal Entry', `
@@ -1651,7 +1663,7 @@ if (document.getElementById('mainContent')) {
     document.getElementById('journalForm').addEventListener('submit', (e) => {
       e.preventDefault();
       journal.push({ id: generateId(), title: document.getElementById('journalTitle').value, date: document.getElementById('journalDate').value, content: document.getElementById('journalContent').value, createdAt: Date.now() });
-      saveToStorage(STORAGE_KEYS.journal, journal); renderJournal(); closeModal();
+      saveData('journal', journal); renderJournal(); closeModal();
     });
   };
   document.getElementById('addJournalBtn')?.addEventListener('click', addJournalModal);
@@ -1684,10 +1696,12 @@ if (document.getElementById('mainContent')) {
     URL.revokeObjectURL(url);
   });
   
-  document.getElementById('clearData')?.addEventListener('click', () => {
+  document.getElementById('clearData')?.addEventListener('click', async () => {
     if (confirm('Clear all data? This cannot be undone.')) {
       Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
       tasks = []; goals = []; habits = []; finance = { transactions: [] }; journal = []; lifeLog = [];
+      await saveData('tasks', []); await saveData('goals', []); await saveData('habits', []);
+      await saveData('finance', { transactions: [] }); await saveData('journal', []); await saveData('lifeLog', []);
       renderTasks(); renderGoals(); renderHabits(); renderFinance(); renderJournal(); renderCalendar(); renderDayDetail();
       updateStats(); alert('All data cleared.');
     }
@@ -1717,4 +1731,66 @@ if (document.getElementById('mainContent')) {
   renderCalendar();
   renderDayDetail();
   updateStats();
+
+  // Cloud sync UI
+  const cloudEl = document.getElementById('cloudSyncContainer');
+  if (cloudEl && window.dataService?.isCloudEnabled?.()) {
+    const renderCloudUI = async () => {
+      const signedIn = await window.dataService.getSession();
+      if (signedIn) {
+        const email = signedIn.user?.email || 'Signed in';
+        cloudEl.innerHTML = `
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-xl text-sm">
+            <i class="fas fa-cloud text-emerald-500"></i>
+            <span class="hidden sm:inline truncate max-w-[120px]" title="${email}">${email}</span>
+            <button id="cloudSignOut" class="p-1 hover:bg-emerald-200 dark:hover:bg-emerald-800/50 rounded" title="Sign out"><i class="fas fa-sign-out-alt text-xs"></i></button>
+          </div>
+        `;
+        cloudEl.querySelector('#cloudSignOut')?.addEventListener('click', async () => {
+          await window.dataService.signOut();
+          window.location.reload();
+        });
+      } else {
+        cloudEl.innerHTML = `
+          <button id="cloudSignIn" class="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-blue-500 hover:text-white transition-all text-sm">
+            <i class="fas fa-cloud"></i>
+            <span class="hidden sm:inline">Sign in to sync</span>
+          </button>
+        `;
+        cloudEl.querySelector('#cloudSignIn')?.addEventListener('click', () => openCloudModal());
+      }
+    };
+    const openCloudModal = () => {
+      openModal('Cloud Sync', `
+        <div class="space-y-4">
+          <p class="text-sm text-slate-600 dark:text-slate-400">Sign in to sync your data across devices. Free with Supabase.</p>
+          <form id="cloudAuthForm" class="space-y-3">
+            <input type="email" id="cloudEmail" placeholder="Email" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <input type="password" id="cloudPassword" placeholder="Password" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <p id="cloudAuthError" class="text-sm text-red-500 hidden"></p>
+            <div class="flex gap-2">
+              <button type="submit" id="cloudSignInBtn" class="flex-1 py-2 gradient-bg text-white text-sm rounded-lg">Sign in</button>
+              <button type="button" id="cloudSignUpBtn" class="flex-1 py-2 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm rounded-lg">Sign up</button>
+            </div>
+          </form>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Local data is imported to cloud when you sign in.</p>
+        </div>
+      `);
+      const doAuth = async (isSignUp) => {
+        const email = document.getElementById('cloudEmail').value;
+        const password = document.getElementById('cloudPassword').value;
+        const err = document.getElementById('cloudAuthError');
+        const { error } = isSignUp ? await window.dataService.signUp(email, password) : await window.dataService.signIn(email, password);
+        if (error) { err.textContent = error.message; err.classList.remove('hidden'); return; }
+        const hasLocal = (window.DATA_DOMAINS || []).some(d => localStorage.getItem(STORAGE_KEYS[d] || 'lifeErp_' + d));
+        if (hasLocal) await window.dataService.importLocalToCloud();
+        closeModal(); window.location.reload();
+      };
+      document.getElementById('cloudAuthForm')?.addEventListener('submit', async (e) => { e.preventDefault(); await doAuth(false); });
+      document.getElementById('cloudSignUpBtn')?.addEventListener('click', async () => await doAuth(true));
+    };
+    renderCloudUI();
+  }
+  })();
+  }
 }
