@@ -20,18 +20,21 @@ const ACTIVITY_TYPES = {
       { key: 'show', label: 'Show Name', type: 'text', required: true },
       { key: 'season', label: 'Season', type: 'number' },
       { key: 'episode', label: 'Episode', type: 'number' },
+      { key: 'repeat', label: 'Rewatch', type: 'checkbox' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
   movie: { name: 'Movie', icon: 'fa-film', color: '#ec4899', plural: 'movies',
     fields: [
       { key: 'title', label: 'Movie Title', type: 'text', required: true },
       { key: 'rating', label: 'Rating (1-10)', type: 'number' },
+      { key: 'repeat', label: 'Rewatch', type: 'checkbox' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
   game: { name: 'Gaming', icon: 'fa-gamepad', color: '#22c55e', plural: 'sessions',
     fields: [
       { key: 'game', label: 'Game', type: 'text', required: true },
       { key: 'duration', label: 'Duration (min)', type: 'number' },
+      { key: 'repeat', label: 'Replay', type: 'checkbox' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
   golf: { name: 'Golf', icon: 'fa-golf-ball', color: '#10b981', plural: 'rounds',
@@ -79,6 +82,7 @@ const ACTIVITY_TYPES = {
       { key: 'title', label: 'Book Title', type: 'text', required: true },
       { key: 'pages', label: 'Pages Read', type: 'number' },
       { key: 'finished', label: 'Finished Book', type: 'checkbox' },
+      { key: 'repeat', label: 'Re-read', type: 'checkbox' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
   social: { name: 'Social', icon: 'fa-users', color: '#0ea5e9', plural: 'hangouts',
@@ -363,14 +367,16 @@ if (document.getElementById('mainContent')) {
         const endEp = r.end.data.episode || 0;
         const epRange = startEp === endEp ? `E${startEp}` : `E${startEp}-${endEp}`;
         const count = endEp - startEp + 1;
+        const rangeEntries = eps.filter(e => (e.data.episode || 0) >= startEp && (e.data.episode || 0) <= endEp);
         result.push({
           type: 'tv',
           show: r.show,
           season: r.season,
           episodeRange: epRange,
           count: count,
-          entries: eps.filter(e => (e.data.episode || 0) >= startEp && (e.data.episode || 0) <= endEp),
-          hasNotes: eps.some(e => e.data.notes)
+          entries: rangeEntries,
+          hasNotes: rangeEntries.some(e => e.data.notes),
+          rewatchCount: rangeEntries.filter(e => e.data.repeat).length
         });
       });
     });
@@ -528,7 +534,7 @@ if (document.getElementById('mainContent')) {
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="font-medium text-slate-900 dark:text-white">${g.show}</p>
-                  <p class="text-sm text-slate-500 dark:text-slate-400">${g.season} ${g.episodeRange} · ${g.count} episode${g.count > 1 ? 's' : ''}${g.hasNotes ? ' · <i class="fas fa-sticky-note text-xs"></i>' : ''}</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">${g.season} ${g.episodeRange} · ${g.count} episode${g.count > 1 ? 's' : ''}${g.rewatchCount ? ` · <span class="text-amber-600 dark:text-amber-400">${g.rewatchCount} rewatch</span>` : ''}${g.hasNotes ? ' · <i class="fas fa-sticky-note text-xs"></i>' : ''}</p>
                 </div>
                 <i class="fas fa-chevron-right text-slate-400 text-sm flex-shrink-0"></i>
               </div>
@@ -604,15 +610,17 @@ if (document.getElementById('mainContent')) {
     
     const t = ACTIVITY_TYPES[type];
     let html = `<div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2">`;
+    const repeatLabel = { tv: 'rewatch', game: 'replay', movie: 'rewatch', book: 're-read' }[type];
     entries.forEach(e => {
       let detail = '';
       if (type === 'tv') detail = `S${e.data.season || 1} E${e.data.episode || 1}`;
-      else detail = t.fields.slice(1).map(f => e.data[f.key]).filter(Boolean).join(' · ');
+      else detail = t.fields.slice(1).filter(f => f.key !== 'repeat').map(f => e.data[f.key]).filter(Boolean).join(' · ');
+      const repeatBadge = e.data.repeat && repeatLabel ? ` <span class="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">${repeatLabel}</span>` : '';
       
       html += `
         <div class="flex items-start justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg group">
           <div class="flex-1 min-w-0 cursor-pointer" onclick="openEditModal('${e.id}')">
-            <p class="font-medium text-slate-900 dark:text-white">${detail}</p>
+            <p class="font-medium text-slate-900 dark:text-white">${detail}${repeatBadge}</p>
             ${e.data.notes ? `<p class="text-sm text-slate-500 dark:text-slate-400 mt-1 whitespace-pre-wrap">${String(e.data.notes).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>` : ''}
           </div>
           <div class="flex items-center gap-1 flex-shrink-0">
@@ -633,7 +641,8 @@ if (document.getElementById('mainContent')) {
     const t = ACTIVITY_TYPES[e.type];
     const mainField = t?.fields[0]?.key;
     const mainValue = e.data[mainField] || 'Entry';
-    const details = t?.fields.slice(1).map(f => ({ label: f.label, value: e.data[f.key] })).filter(d => d.value !== undefined && d.value !== '') || [];
+    const details = t?.fields.slice(1).filter(f => f.key !== 'repeat').map(f => ({ label: f.label, value: e.data[f.key] })).filter(d => d.value !== undefined && d.value !== '' && d.value !== false) || [];
+    const repeatLabel = { tv: 'Rewatch', game: 'Replay', movie: 'Rewatch', book: 'Re-read' }[e.type];
     
     let html = `
       <div class="space-y-4">
@@ -644,6 +653,7 @@ if (document.getElementById('mainContent')) {
         ${details.length ? `<div class="space-y-2">${details.map(d => `
           <div><span class="text-xs text-slate-500 dark:text-slate-400">${d.label}</span><p class="text-sm text-slate-900 dark:text-white">${String(d.value).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>
         `).join('')}</div>` : ''}
+        ${e.data.repeat && repeatLabel ? `<div><span class="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm rounded-lg"><i class="fas fa-redo text-xs"></i>${repeatLabel}</span></div>` : ''}
         ${e.data.notes ? `<div><span class="text-xs text-slate-500 dark:text-slate-400">Notes</span><p class="text-sm text-slate-700 dark:text-slate-300 mt-1 whitespace-pre-wrap">${String(e.data.notes).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>` : ''}
         ${e.data.content ? `<div><span class="text-xs text-slate-500 dark:text-slate-400">Content</span><p class="text-sm text-slate-700 dark:text-slate-300 mt-1 whitespace-pre-wrap">${String(e.data.content).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>` : ''}
         <div class="flex gap-2 pt-2">
@@ -846,6 +856,72 @@ if (document.getElementById('mainContent')) {
   };
   
   // ========================================
+  // Library - Detail Modal
+  // ========================================
+  window.showLibraryDetail = (type, groupKey, label) => {
+    const t = ACTIVITY_TYPES[type];
+    let filtered = [];
+    if (type === 'work' && groupKey.includes('|')) {
+      const [cat, sub] = groupKey.split('|');
+      filtered = lifeLog.filter(e => e.type === type && (e.data.category || 'Job') === cat && (e.data.subtype || 'Other') === sub);
+    } else if (type === 'tv') {
+      filtered = lifeLog.filter(e => e.type === type && e.data.show === groupKey);
+    } else if (type === 'game') {
+      filtered = lifeLog.filter(e => e.type === type && e.data.game === groupKey);
+    } else if (type === 'book') {
+      filtered = lifeLog.filter(e => e.type === type && e.data.title === groupKey);
+    } else if (type === 'golf') {
+      filtered = lifeLog.filter(e => e.type === type && e.data.course === groupKey);
+    } else if (type === 'climbing') {
+      filtered = lifeLog.filter(e => e.type === type && e.data.location === groupKey);
+    } else if (type === 'sports') {
+      filtered = lifeLog.filter(e => e.type === type && (e.data.sport || 'Other') === groupKey);
+    } else {
+      filtered = lifeLog.filter(e => e.type === type);
+    }
+    
+    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+    const thisYear = new Date().getFullYear();
+    const thisYearCount = filtered.filter(e => e.date.startsWith(String(thisYear))).length;
+    const repeatCount = filtered.filter(e => e.data.repeat).length;
+    const repeatLabelSingular = { tv: 'rewatch', game: 'replay', movie: 'rewatch', book: 're-read' };
+    const repeatLabelPlural = { tv: 'rewatches', game: 'replays', movie: 'rewatches', book: 're-reads' };
+    const entriesHtml = filtered.map(e => {
+      const mainField = t?.fields[0]?.key;
+      const mainValue = (e.data[mainField] || 'Entry').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const details = t?.fields.slice(1, 5).filter(f => f.key !== 'repeat').map(f => e.data[f.key]).filter(Boolean).join(' · ');
+      const repeatBadge = e.data.repeat && repeatLabelSingular[type] ? ` <span class="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">${repeatLabelSingular[type]}</span>` : '';
+      return `<div onclick="showEntryDetail('${e.id}'); closeModal();" class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
+        <div class="flex-1 min-w-0">
+          <p class="font-medium text-slate-900 dark:text-white">${mainValue}${repeatBadge}</p>
+          <p class="text-sm text-slate-500 dark:text-slate-400">${details ? details + ' · ' : ''}${formatDateShort(e.date)}</p>
+        </div>
+        <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onclick="event.stopPropagation()">
+          <button onclick="openEditModal('${e.id}'); closeModal();" class="p-2 text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg" title="Edit"><i class="fas fa-pen text-xs"></i></button>
+          <button onclick="deleteEntry('${e.id}'); closeModal();" class="p-2 text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg" title="Delete"><i class="fas fa-trash text-xs"></i></button>
+        </div>
+        <i class="fas fa-chevron-right text-slate-400 text-sm ml-2"></i>
+      </div>`;
+    }).join('');
+    
+    let statsParts = [filtered.length + ' total'];
+    if (thisYearCount > 0 && thisYearCount !== filtered.length) statsParts.push(thisYearCount + ' this year');
+    if (repeatCount > 0 && repeatLabelPlural[type]) statsParts.push(repeatCount + ' ' + repeatLabelPlural[type]);
+    const statsHtml = `<p class="text-sm text-slate-500 dark:text-slate-400 mb-4">${statsParts.join(' · ')}</p>`;
+    
+    const content = `
+      <div>
+        ${statsHtml}
+        <div class="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+          ${entriesHtml}
+        </div>
+      </div>
+    `;
+    
+    openModal(label || groupKey, content);
+  };
+  
+  // ========================================
   // Library - Aggregate Views
   // ========================================
   const renderLibrary = () => {
@@ -895,18 +971,22 @@ if (document.getElementById('mainContent')) {
           return `S${s}: E${first}${first !== last ? `-${last}` : ''}`;
         }).join(', ');
         
+        const showEsc = (show || '').replace(/'/g, "\\'");
+        const rewatchCount = Object.values(data.seasons).flat().filter(e => e.data.repeat).length;
+        const rewatchStr = rewatchCount > 0 ? ` · ${rewatchCount} rewatch${rewatchCount !== 1 ? 'es' : ''}` : '';
         html += `
-          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+          <div onclick="showLibraryDetail('tv', '${showEsc}', '${show}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
             <div class="flex items-start gap-4">
               <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
                 <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
               </div>
               <div class="flex-1 min-w-0">
                 <h4 class="font-semibold text-slate-900 dark:text-white">${show}</h4>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${data.totalEpisodes} episodes across ${seasonCount} season${seasonCount > 1 ? 's' : ''}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${data.totalEpisodes} episodes across ${seasonCount} season${seasonCount > 1 ? 's' : ''}${rewatchStr}</p>
                 <p class="text-xs text-slate-400 mt-2">${seasonSummary}</p>
                 <p class="text-xs text-slate-400 mt-1">Last watched: ${formatDateShort(data.lastWatched)}</p>
               </div>
+              <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600 mt-2"></i>
             </div>
           </div>
         `;
@@ -917,9 +997,10 @@ if (document.getElementById('mainContent')) {
       const games = {};
       entries.forEach(e => {
         const game = e.data.game;
-        if (!games[game]) games[game] = { sessions: 0, totalTime: 0, lastPlayed: e.date };
+        if (!games[game]) games[game] = { sessions: 0, totalTime: 0, lastPlayed: e.date, entries: [] };
         games[game].sessions++;
         games[game].totalTime += e.data.duration || 0;
+        games[game].entries.push(e);
         if (e.date > games[game].lastPlayed) games[game].lastPlayed = e.date;
       });
       
@@ -928,17 +1009,21 @@ if (document.getElementById('mainContent')) {
       html = `<div class="space-y-4">`;
       sorted.forEach(([game, data]) => {
         const hours = Math.round(data.totalTime / 60 * 10) / 10;
+        const gameEsc = (game || '').replace(/'/g, "\\'");
+        const replayCount = data.entries.filter(e => e.data.repeat).length;
+        const replayStr = replayCount > 0 ? ` · ${replayCount} replay${replayCount !== 1 ? 's' : ''}` : '';
         html += `
-          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+          <div onclick="showLibraryDetail('game', '${gameEsc}', '${game}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
             <div class="flex items-center gap-4">
               <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: ${t.color}20">
                 <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
               </div>
               <div class="flex-1">
                 <h4 class="font-semibold text-slate-900 dark:text-white">${game}</h4>
-                <p class="text-sm text-slate-500 dark:text-slate-400">${data.sessions} sessions · ${hours}h total</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">${data.sessions} sessions · ${hours}h total${replayStr}</p>
                 <p class="text-xs text-slate-400 mt-1">Last played: ${formatDateShort(data.lastPlayed)}</p>
               </div>
+              <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600"></i>
             </div>
           </div>
         `;
@@ -949,9 +1034,10 @@ if (document.getElementById('mainContent')) {
       const books = {};
       entries.forEach(e => {
         const title = e.data.title;
-        if (!books[title]) books[title] = { sessions: 0, pages: 0, finished: false, lastRead: e.date };
+        if (!books[title]) books[title] = { sessions: 0, pages: 0, finished: false, lastRead: e.date, entries: [] };
         books[title].sessions++;
         books[title].pages += e.data.pages || 0;
+        books[title].entries.push(e);
         if (e.data.finished) books[title].finished = true;
         if (e.date > books[title].lastRead) books[title].lastRead = e.date;
       });
@@ -960,17 +1046,21 @@ if (document.getElementById('mainContent')) {
       
       html = `<div class="space-y-4">`;
       sorted.forEach(([title, data]) => {
+        const titleEsc = (title || '').replace(/'/g, "\\'");
+        const rereadCount = (data.entries || []).filter(e => e.data.repeat).length;
+        const rereadStr = rereadCount > 0 ? ` · ${rereadCount} re-read${rereadCount !== 1 ? 's' : ''}` : '';
         html += `
-          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+          <div onclick="showLibraryDetail('book', '${titleEsc}', '${title}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
             <div class="flex items-center gap-4">
               <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: ${t.color}20">
                 <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
               </div>
               <div class="flex-1">
                 <h4 class="font-semibold text-slate-900 dark:text-white">${title}</h4>
-                <p class="text-sm text-slate-500 dark:text-slate-400">${data.pages} pages · ${data.sessions} sessions ${data.finished ? '· <span class="text-green-500">Finished</span>' : ''}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">${data.pages} pages · ${data.sessions} sessions ${data.finished ? '· <span class="text-green-500">Finished</span>' : ''}${rereadStr}</p>
                 <p class="text-xs text-slate-400 mt-1">Last read: ${formatDateShort(data.lastRead)}</p>
               </div>
+              <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600"></i>
             </div>
           </div>
         `;
@@ -992,8 +1082,9 @@ if (document.getElementById('mainContent')) {
       sorted.forEach(([sport, data]) => {
         const inPerson = data.events.filter(e => e.data.venue === 'In Person').length;
         const watched = data.events.length - inPerson;
+        const sportEsc = (sport || '').replace(/'/g, "\\'");
         html += `
-          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+          <div onclick="showLibraryDetail('sports', '${sportEsc}', '${sport}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
             <div class="flex items-start gap-4">
               <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
                 <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
@@ -1004,6 +1095,7 @@ if (document.getElementById('mainContent')) {
                 <p class="text-xs text-slate-400 mt-2">${data.events.slice(0, 3).map(e => e.data.event).join(', ')}${data.events.length > 3 ? '...' : ''}</p>
                 <p class="text-xs text-slate-400 mt-1">Last: ${formatDateShort(data.lastWatched)}</p>
               </div>
+              <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600 mt-2"></i>
             </div>
           </div>
         `;
@@ -1034,8 +1126,10 @@ if (document.getElementById('mainContent')) {
             <div class="space-y-3">
               ${Object.entries(bySubtype).sort((a, b) => b[1].length - a[1].length).map(([sub, items]) => {
                 const subMins = items.reduce((s, e) => s + (e.data.duration || 0), 0);
+                const groupKey = `${cat}|${sub}`.replace(/'/g, "\\'");
+                const label = `${cat} · ${sub}`;
                 return `
-                <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                <div onclick="showLibraryDetail('work', '${groupKey}', '${label}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
                   <div class="flex items-start gap-4">
                     <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
                       <i class="fas ${t.icon}" style="color: ${t.color}"></i>
@@ -1045,6 +1139,7 @@ if (document.getElementById('mainContent')) {
                       <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${items.length} session${items.length !== 1 ? 's' : ''}${subMins ? ` · ${Math.round(subMins / 60 * 10) / 10}h` : ''}</p>
                       <p class="text-xs text-slate-400 mt-2">${items.slice(0, 2).map(e => e.data.title).join(', ')}${items.length > 2 ? '...' : ''}</p>
                     </div>
+                    <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600 mt-2"></i>
                   </div>
                 </div>
               `;
@@ -1054,21 +1149,57 @@ if (document.getElementById('mainContent')) {
         `;
       });
       html += '</div>';
-    } else if (type === 'movie') {
-      const sorted = entries.sort((a, b) => new Date(b.date) - new Date(a.date));
+    } else if (type === 'golf') {
+      // Group by course
+      const courses = {};
+      entries.forEach(e => {
+        const course = e.data.course || 'Unknown';
+        if (!courses[course]) courses[course] = { rounds: [], lastPlayed: e.date };
+        courses[course].rounds.push(e);
+        if (e.date > courses[course].lastPlayed) courses[course].lastPlayed = e.date;
+      });
+      
+      const sorted = Object.entries(courses).sort((a, b) => new Date(b[1].lastPlayed) - new Date(a[1].lastPlayed));
+      const thisYear = new Date().getFullYear();
+      
       html = `<div class="space-y-4">`;
-      sorted.forEach(e => {
+      sorted.forEach(([course, data]) => {
+        const thisYearRounds = data.rounds.filter(e => e.date.startsWith(String(thisYear))).length;
+        const courseEsc = (course || '').replace(/'/g, "\\'");
         html += `
-          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+          <div onclick="showLibraryDetail('golf', '${courseEsc}', '${course}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
             <div class="flex items-center gap-4">
               <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: ${t.color}20">
                 <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
               </div>
               <div class="flex-1">
-                <h4 class="font-semibold text-slate-900 dark:text-white">${e.data.title}</h4>
+                <h4 class="font-semibold text-slate-900 dark:text-white">${course}</h4>
+                <p class="text-sm text-slate-500 dark:text-slate-400">${data.rounds.length} round${data.rounds.length !== 1 ? 's' : ''}${thisYearRounds > 0 ? ` · ${thisYearRounds} this year` : ''}</p>
+                <p class="text-xs text-slate-400 mt-1">Last played: ${formatDateShort(data.lastPlayed)}</p>
+              </div>
+              <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600"></i>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+    } else if (type === 'movie') {
+      const sorted = entries.sort((a, b) => new Date(b.date) - new Date(a.date));
+      html = `<div class="space-y-4">`;
+      sorted.forEach(e => {
+        const rewatchBadge = e.data.repeat ? '<span class="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded ml-2">rewatch</span>' : '';
+        html += `
+          <div onclick="showEntryDetail('${e.id}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: ${t.color}20">
+                <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
+              </div>
+              <div class="flex-1">
+                <h4 class="font-semibold text-slate-900 dark:text-white">${e.data.title}${rewatchBadge}</h4>
                 <p class="text-sm text-slate-500 dark:text-slate-400">${e.data.rating ? `★ ${e.data.rating}/10 · ` : ''}${formatDateShort(e.date)}</p>
                 ${e.data.notes ? `<p class="text-xs text-slate-400 mt-1">${e.data.notes}</p>` : ''}
               </div>
+              <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600"></i>
             </div>
           </div>
         `;
@@ -1080,11 +1211,11 @@ if (document.getElementById('mainContent')) {
       html = `<div class="space-y-3">`;
       sorted.forEach(e => {
         const mainField = t.fields[0]?.key;
-        const mainValue = e.data[mainField] || 'Entry';
+        const mainValue = (e.data[mainField] || 'Entry').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const secondaryInfo = t.fields.slice(1, 3).map(f => e.data[f.key]).filter(Boolean).join(' · ');
         
         html += `
-          <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+          <div onclick="showEntryDetail('${e.id}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
             <div class="flex items-center gap-4">
               <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: ${t.color}20">
                 <i class="fas ${t.icon}" style="color: ${t.color}"></i>
@@ -1093,6 +1224,7 @@ if (document.getElementById('mainContent')) {
                 <p class="font-medium text-slate-900 dark:text-white">${mainValue}</p>
                 <p class="text-sm text-slate-500 dark:text-slate-400">${secondaryInfo ? secondaryInfo + ' · ' : ''}${formatDateShort(e.date)}</p>
               </div>
+              <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600"></i>
             </div>
           </div>
         `;
