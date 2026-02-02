@@ -2172,7 +2172,7 @@ if (document.getElementById('mainContent')) {
         </div>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
-        <p class="font-bold text-slate-900 dark:text-white">${balance}</p>
+        <p class="font-bold text-slate-900 dark:text-white min-w-[7rem] text-right tabular-nums">${balance}</p>
         ${chevron}
         ${extra || ''}
       </div>
@@ -2205,14 +2205,25 @@ if (document.getElementById('mainContent')) {
   };
   const buildSlotOrderFromAccounts = () => {
     const sorted = sortAccounts(finance.accounts);
+    const byInst = {};
+    sorted.forEach(a => {
+      const inst = (a.institution || '').trim() || '__ungrouped__';
+      if (!byInst[inst]) byInst[inst] = [];
+      byInst[inst].push(a);
+    });
     const seen = new Set();
     const order = [];
     sorted.forEach(a => {
       const inst = (a.institution || '').trim() || '__ungrouped__';
       if (inst !== '__ungrouped__') {
-        if (!seen.has('inst:' + inst)) {
-          seen.add('inst:' + inst);
-          order.push('inst:' + inst);
+        if (!seen.has(inst)) {
+          seen.add(inst);
+          const group = byInst[inst] || [];
+          if (group.length >= 2) {
+            order.push('inst:' + inst);
+          } else {
+            order.push('acc:' + a.id);
+          }
         }
       } else {
         order.push('acc:' + a.id);
@@ -2254,24 +2265,42 @@ if (document.getElementById('mainContent')) {
       if (slotData.startsWith('inst:')) {
         const instLabel = slotData.slice(5);
         const group = byInstitution[instLabel] || [];
-        const totalBal = group.reduce((s, a) => s + (parseFloat(a.currentBalance) || 0), 0);
-        const groupId = 'inst-' + instLabel.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
-        const collapsed = getCollapsedInstitutions().has(instLabel);
-        html += `<div class="account-slot-wrapper mb-2" data-drag="inst:${instLabel.replace(/"/g, '&quot;')}">
-          ${accountSlotHtml({
-            isGroup: true,
-            dragData: `inst:${instLabel.replace(/"/g, '&quot;')}`,
-            icon: 'building-columns',
-            title: instLabel.replace(/</g, '&lt;'),
-            subtitle: `${group.length} accounts`,
-            balance: formatCurrency(totalBal),
-            startCollapsed: collapsed
-          })}
-          <div class="account-slot-expand mt-2 space-y-2 ${collapsed ? 'hidden' : ''}" id="${groupId}">`;
-        group.forEach((a, idx) => {
-          html += renderAccountRow(a, parseFloat(a.currentBalance) || 0, idx === 0, idx === group.length - 1);
-        });
-        html += '</div></div>';
+        // Single-account institutions: render as flat row (no group), cleaner view
+        if (group.length === 1) {
+          const a = group[0];
+          const bal = parseFloat(a.currentBalance) || 0;
+          const extra = `<button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
+            <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
+            <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>`;
+          html += `<div class="account-slot-wrapper mb-2" data-drag="acc:${a.id}">${accountSlotHtml({
+            isGroup: false,
+            dragData: `acc:${a.id}`,
+            icon: a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university',
+            title: (a.name || 'Account').replace(/</g, '&lt;'),
+            subtitle: (a.type || 'other').replace(/</g, '&lt;'),
+            balance: formatCurrency(bal),
+            extra
+          })}</div>`;
+        } else {
+          const totalBal = group.reduce((s, a) => s + (parseFloat(a.currentBalance) || 0), 0);
+          const groupId = 'inst-' + instLabel.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
+          const collapsed = getCollapsedInstitutions().has(instLabel);
+          html += `<div class="account-slot-wrapper mb-2" data-drag="inst:${instLabel.replace(/"/g, '&quot;')}">
+            ${accountSlotHtml({
+              isGroup: true,
+              dragData: `inst:${instLabel.replace(/"/g, '&quot;')}`,
+              icon: 'building-columns',
+              title: instLabel.replace(/</g, '&lt;'),
+              subtitle: `${group.length} accounts`,
+              balance: formatCurrency(totalBal),
+              startCollapsed: collapsed
+            })}
+            <div class="account-slot-expand mt-2 space-y-2 ${collapsed ? 'hidden' : ''}" id="${groupId}">`;
+          group.forEach((a, idx) => {
+            html += renderAccountRow(a, parseFloat(a.currentBalance) || 0, idx === 0, idx === group.length - 1);
+          });
+          html += '</div></div>';
+        }
       } else {
         const accId = slotData.slice(4);
         const a = accounts.find(x => x.id === accId);
@@ -2310,7 +2339,7 @@ if (document.getElementById('mainContent')) {
         <p class="text-xs text-slate-500 capitalize">${a.type || 'other'}</p>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
-        <p class="font-bold text-slate-900 dark:text-white">${formatCurrency(bal)}</p>
+        <p class="font-bold text-slate-900 dark:text-white min-w-[7rem] text-right tabular-nums">${formatCurrency(bal)}</p>
         <button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
         <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
         <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>
