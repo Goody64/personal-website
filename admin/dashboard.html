@@ -55,6 +55,8 @@
     .txn-drop-placeholder { min-height: 48px; border: 2px dashed #3b82f6; border-radius: 8px; background: rgba(59,130,246,0.08); margin: 2px 0; }
     /* Account balance column - fixed width for vertical alignment across rows */
     .account-balance-col { width: 8.5rem; min-width: 8.5rem; text-align: right; }
+    /* Actions column - same width on every row so balance column aligns (institution = chevron only; account = edit/update/delete) */
+    .account-actions-col { width: 8rem; min-width: 8rem; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; gap: 0.25rem; }
   </style>
 </head>
 
@@ -784,6 +786,16 @@
                   </div>
                   <button id="exportData" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
                     <i class="fas fa-download mr-2"></i>Export
+                  </button>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300">Restore from backup</p>
+                    <p class="text-xs text-slate-500">Upload a previously exported JSON file to replace all data</p>
+                  </div>
+                  <input type="file" id="restoreFileInput" accept=".json,application/json" class="hidden">
+                  <button id="restoreData" type="button" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                    <i class="fas fa-upload mr-2"></i>Restore
                   </button>
                 </div>
                 <div class="flex items-center justify-between">

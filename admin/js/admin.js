@@ -1953,7 +1953,7 @@ if (document.getElementById('mainContent')) {
         </div>
         <div class="flex-1 min-w-0">
           <p class="font-medium text-slate-900 dark:text-white text-sm truncate">${t.description}</p>
-          <p class="text-xs text-slate-500">${t.category}${t.receiptUrl ? ` · <a href="${(t.receiptUrl || '').replace(/"/g, '&quot;')}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">Receipt</a>` : ''}</p>
+          <p class="text-xs text-slate-500">${t.category}${t.receiptUrl ? ` · <a href="${(t.receiptUrl || '').replace(/"/g, '&quot;')}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">Doc</a>` : ''}</p>
         </div>
         <p class="font-bold flex-shrink-0 ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</p>
         <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100">
@@ -2036,8 +2036,14 @@ if (document.getElementById('mainContent')) {
     });
   };
 
+  const getAccountDisplayName = (a) => {
+    const rawName = (a.name || 'Account').trim();
+    const inst = (a.institution || '').trim();
+    if (inst && !rawName.toLowerCase().startsWith(inst.toLowerCase())) return `${inst} – ${rawName}`;
+    return rawName;
+  };
   const getAccountOpts = (selectedId) => {
-    const opts = finance.accounts.map(a => `<option value="${a.id}" ${a.id === selectedId ? 'selected' : ''}>${(a.name || 'Account').replace(/</g, '&lt;')} (${a.type})</option>`).join('');
+    const opts = finance.accounts.map(a => `<option value="${a.id}" ${a.id === selectedId ? 'selected' : ''}>${getAccountDisplayName(a).replace(/</g, '&lt;')} (${a.type})</option>`).join('');
     return `<option value="">— None —</option>${opts}`;
   };
 
@@ -2062,7 +2068,7 @@ if (document.getElementById('mainContent')) {
           <select id="txnCat" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">${catOpts}</select></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Account (optional)</label>
           <select id="txnAccount" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">${acctOpts}</select></div>
-        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Receipt URL (optional)</label>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Receipt / document URL (optional)</label>
           <input type="url" id="txnReceiptUrl" placeholder="https://..." value="${(t.receiptUrl || '').replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
           <input type="date" id="txnDate" value="${t.date || getLocalDateString()}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
@@ -2109,7 +2115,7 @@ if (document.getElementById('mainContent')) {
           <select id="txnCat" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">${catOpts}</select></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Account (optional)</label>
           <select id="txnAccount" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">${acctOpts}</select></div>
-        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Receipt URL (optional)</label>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Receipt / document URL (optional)</label>
           <input type="url" id="txnReceiptUrl" placeholder="https://..." class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
           <input type="date" id="txnDate" value="${getLocalDateString()}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
@@ -2159,7 +2165,8 @@ if (document.getElementById('mainContent')) {
   const accountSlotHtml = (opts) => {
     const { isGroup, dragData, icon, title, subtitle, balance, extra, startCollapsed } = opts;
     const collapsed = isGroup && startCollapsed;
-    const chevron = isGroup ? `<button type="button" onclick="var w=this.closest('.account-slot-wrapper'); var exp=w.querySelector('.account-slot-expand'); var inst=w.dataset.drag?w.dataset.drag.replace('inst:',''):''; exp.classList.toggle('hidden'); var c=exp.classList.contains('hidden'); if(inst)window._setCollapsedInst(inst,c); var i=this.querySelector('i'); i.classList.toggle('fa-chevron-down',!c); i.classList.toggle('fa-chevron-right',c);" class="p-2 -mr-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"><i class="fas fa-chevron-${collapsed?'right':'down'} text-sm"></i></button>` : '';
+    const chevron = isGroup ? `<button type="button" onclick="var w=this.closest('.account-slot-wrapper'); var exp=w.querySelector('.account-slot-expand'); var inst=w.dataset.drag?w.dataset.drag.replace('inst:',''):''; exp.classList.toggle('hidden'); var c=exp.classList.contains('hidden'); if(inst)window._setCollapsedInst(inst,c); var i=this.querySelector('i'); i.classList.toggle('fa-chevron-down',!c); i.classList.toggle('fa-chevron-right',c);" class="p-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"><i class="fas fa-chevron-${collapsed?'right':'down'} text-sm"></i></button>` : '';
+    const actionsContent = isGroup ? chevron : (extra || '');
     return `<div class="account-slot flex items-center gap-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group mb-2" data-drag="${dragData}" draggable="true">
       <span class="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 drag-handle flex-shrink-0" title="Drag to reorder"><i class="fas fa-grip-vertical text-sm"></i></span>
       <div class="flex items-center gap-4 flex-1 min-w-0">
@@ -2171,11 +2178,10 @@ if (document.getElementById('mainContent')) {
           <p class="text-xs text-slate-500">${subtitle}</p>
         </div>
       </div>
-      <div class="account-balance-col flex items-center justify-end gap-2 flex-shrink-0">
+      <div class="account-balance-col flex items-center justify-end flex-shrink-0">
         <p class="font-bold text-slate-900 dark:text-white tabular-nums">${balance}</p>
-        ${chevron}
-        ${extra || ''}
       </div>
+      <div class="account-actions-col">${actionsContent}</div>
     </div>`;
   };
 
@@ -2342,8 +2348,10 @@ if (document.getElementById('mainContent')) {
         <p class="font-semibold text-slate-900 dark:text-white truncate">${(a.name || 'Account').replace(/</g, '&lt;')}</p>
         <p class="text-xs text-slate-500 capitalize">${a.type || 'other'}</p>
       </div>
-      <div class="account-balance-col flex items-center justify-end gap-2 flex-shrink-0">
+      <div class="account-balance-col flex items-center justify-end flex-shrink-0">
         <p class="font-bold text-slate-900 dark:text-white tabular-nums">${formatCurrency(bal)}</p>
+      </div>
+      <div class="account-actions-col">
         <button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
         <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
         <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>
@@ -2843,7 +2851,54 @@ if (document.getElementById('mainContent')) {
     const a = document.createElement('a'); a.href = url; a.download = `life-erp-${getLocalDateString()}.json`; a.click();
     URL.revokeObjectURL(url);
   });
-  
+
+  document.getElementById('restoreData')?.addEventListener('click', () => {
+    document.getElementById('restoreFileInput')?.click();
+  });
+  document.getElementById('restoreFileInput')?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const domains = ['tasks', 'goals', 'habits', 'finance', 'journal', 'lifeLog'];
+      const hasAll = domains.every(d => d in parsed);
+      if (!hasAll) {
+        alert('Invalid backup file. It should contain: ' + domains.join(', ') + '.');
+        return;
+      }
+      const fin = parsed.finance;
+      const financeRestored = fin && typeof fin === 'object'
+        ? { transactions: Array.isArray(fin.transactions) ? fin.transactions : [], accounts: Array.isArray(fin.accounts) ? fin.accounts : [], accountSlotOrder: Array.isArray(fin.accountSlotOrder) ? fin.accountSlotOrder : undefined }
+        : { transactions: [], accounts: [] };
+      if (!confirm('Restore will replace all current data with the backup. Continue?')) return;
+      tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+      goals = Array.isArray(parsed.goals) ? parsed.goals : [];
+      habits = Array.isArray(parsed.habits) ? parsed.habits : [];
+      finance = financeRestored;
+      journal = Array.isArray(parsed.journal) ? parsed.journal : [];
+      lifeLog = Array.isArray(parsed.lifeLog) ? parsed.lifeLog : [];
+      await saveData('tasks', tasks);
+      await saveData('goals', goals);
+      await saveData('habits', habits);
+      await saveData('finance', finance);
+      await saveData('journal', journal);
+      await saveData('lifeLog', lifeLog);
+      renderTasks();
+      renderGoals();
+      renderHabits();
+      renderFinance();
+      renderJournal();
+      renderCalendar();
+      renderDayDetail();
+      updateStats();
+      alert('Data restored.');
+    } catch (err) {
+      alert('Could not restore: ' + (err.message || 'invalid file'));
+    }
+  });
+
   document.getElementById('clearData')?.addEventListener('click', async () => {
     if (confirm('Clear all data? This cannot be undone.')) {
       Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
