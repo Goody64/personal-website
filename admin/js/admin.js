@@ -150,6 +150,11 @@ const parseLocalDate = (dateStr) => {
   const [y, m, d] = String(dateStr).split('-').map(Number);
   return new Date(y, (m || 1) - 1, d || 1);
 };
+// Today's date in local timezone (avoids UTC bug - PST shows next day)
+const getLocalDateString = () => {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+};
 const formatDate = (date) => {
   const d = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? parseLocalDate(date) : new Date(date);
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -355,7 +360,7 @@ if (document.getElementById('mainContent')) {
   
   // State
   let currentDate = new Date();
-  let selectedDate = new Date().toISOString().split('T')[0];
+  let selectedDate = getLocalDateString();
   let currentLibraryType = 'tv';
   
   // ========================================
@@ -542,7 +547,7 @@ if (document.getElementById('mainContent')) {
     
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     
     let html = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => 
       `<div class="text-center text-xs font-semibold text-slate-500 dark:text-slate-400 py-3">${d}</div>`
@@ -1651,6 +1656,15 @@ if (document.getElementById('mainContent')) {
   // ========================================
   // Finance
   // ========================================
+  const TXN_CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Housing', 'Utilities', 'Salary', 'Other'];
+  const getTxnSortKey = (t) => [t.date, (t.sortOrder ?? t.createdAt ?? 0)];
+  const sortTxns = (arr) => [...arr].sort((a, b) => {
+    const [da, oa] = getTxnSortKey(a);
+    const [db, ob] = getTxnSortKey(b);
+    if (da !== db) return new Date(db) - new Date(da);
+    return (oa || 0) - (ob || 0);
+  });
+
   const renderFinance = () => {
     const container = document.getElementById('transactionsContainer');
     const txns = finance.transactions || [];
@@ -1664,28 +1678,141 @@ if (document.getElementById('mainContent')) {
     
     if (!container) return;
     if (txns.length === 0) {
-      container.innerHTML = `<div class="text-center py-8 text-slate-400"><i class="fas fa-receipt text-3xl mb-2 opacity-50"></i><p class="text-sm">No transactions</p></div>`;
+      container.innerHTML = `<div class="text-center py-8 text-slate-400"><i class="fas fa-receipt text-3xl mb-2 opacity-50"></i><p class="text-sm">No transactions</p><p class="text-xs mt-1">Drag to reorder within a day</p></div>`;
       return;
     }
     
-    container.innerHTML = txns.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10).map(t => `
-      <div class="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl mb-2 group">
-        <div class="w-10 h-10 ${t.type === 'income' ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : 'bg-red-100 dark:bg-red-900/30 text-red-600'} rounded-lg flex items-center justify-center">
+    const sorted = sortTxns(txns);
+    const byDate = {};
+    sorted.forEach(t => {
+      const d = t.date || '1970-01-01';
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(t);
+    });
+    
+    let html = '';
+    Object.keys(byDate).sort((a, b) => new Date(b) - new Date(a)).forEach(dateStr => {
+      const dayTxns = byDate[dateStr];
+      html += `<div class="mb-4"><div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 px-1">${formatDate(dateStr)}</div>`;
+      html += `<div class="space-y-2 txn-date-group" data-date="${dateStr}">`;
+      dayTxns.forEach((t, idx) => {
+        html += `
+      <div class="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl group txn-row" data-txn-id="${t.id}" draggable="true">
+        <span class="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical text-sm"></i></span>
+        <div class="w-10 h-10 flex-shrink-0 ${t.type === 'income' ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : 'bg-red-100 dark:bg-red-900/30 text-red-600'} rounded-lg flex items-center justify-center">
           <i class="fas fa-arrow-${t.type === 'income' ? 'down' : 'up'}"></i>
         </div>
-        <div class="flex-1">
-          <p class="font-medium text-slate-900 dark:text-white text-sm">${t.description}</p>
-          <p class="text-xs text-slate-500">${t.category} · ${formatDateShort(t.date)}</p>
+        <div class="flex-1 min-w-0">
+          <p class="font-medium text-slate-900 dark:text-white text-sm truncate">${t.description}</p>
+          <p class="text-xs text-slate-500">${t.category}</p>
         </div>
-        <p class="font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</p>
-        <button onclick="deleteTxn('${t.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400"><i class="fas fa-trash text-xs"></i></button>
-      </div>
-    `).join('');
+        <p class="font-bold flex-shrink-0 ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</p>
+        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+          <button onclick="editTxn('${t.id}')" class="p-2 text-blue-500 hover:text-blue-600" title="Edit"><i class="fas fa-pen text-xs"></i></button>
+          <button onclick="deleteTxn('${t.id}')" class="p-2 text-red-400 hover:text-red-500" title="Delete"><i class="fas fa-trash text-xs"></i></button>
+        </div>
+      </div>`;
+      });
+      html += '</div></div>';
+    });
+    container.innerHTML = html;
+    attachTxnDragListeners();
   };
-  
+
+  const attachTxnDragListeners = () => {
+    const rows = document.querySelectorAll('.txn-row');
+    rows.forEach(row => {
+      row.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', row.dataset.txnId);
+        row.classList.add('opacity-50');
+      });
+      row.addEventListener('dragend', () => row.classList.remove('opacity-50'));
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const rect = row.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
+        row.classList.add(e.clientY < mid ? 'border-t-2 border-blue-500' : 'border-b-2 border-blue-500');
+      });
+      row.addEventListener('dragleave', (e) => {
+        if (!row.contains(e.relatedTarget)) row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
+      });
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.currentTarget.classList.remove('border-t-2', 'border-b-2');
+        const draggedId = e.dataTransfer.getData('text/plain');
+        const targetId = e.currentTarget.dataset.txnId;
+        if (!draggedId || draggedId === targetId) return;
+        const group = e.currentTarget.closest('.txn-date-group');
+        if (!group) return;
+        const draggedRow = document.querySelector(`.txn-row[data-txn-id="${draggedId}"]`);
+        if (!draggedRow || draggedRow.closest('.txn-date-group') !== group) return;
+        const dateStr = group.dataset.date;
+        const dayTxns = [...group.querySelectorAll('.txn-row')].map(r => r.dataset.txnId);
+        const fromIdx = dayTxns.indexOf(draggedId);
+        let toIdx = dayTxns.indexOf(targetId);
+        const rect = e.currentTarget.getBoundingClientRect();
+        const insertBefore = e.clientY < rect.top + rect.height / 2;
+        if (insertBefore && toIdx > fromIdx) toIdx--;
+        if (!insertBefore && toIdx < fromIdx) toIdx++;
+        if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+        const dayList = finance.transactions.filter(t => (t.date || '') === dateStr);
+        dayList.sort((a, b) => (a.sortOrder ?? a.createdAt ?? 0) - (b.sortOrder ?? b.createdAt ?? 0));
+        const [moved] = dayList.splice(fromIdx, 1);
+        dayList.splice(toIdx, 0, moved);
+        dayList.forEach((t, i) => { t.sortOrder = i; });
+        saveData('finance', finance);
+        renderFinance();
+      });
+    });
+  };
+
+  window.editTxn = (id) => {
+    const t = finance.transactions.find(x => x.id === id);
+    if (!t) return;
+    const catOpts = TXN_CATEGORIES.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('');
+    openModal('Edit Transaction', `
+      <form id="txnForm" class="space-y-4">
+        <input type="hidden" id="txnEditId" value="${t.id}">
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
+          <select id="txnType" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <option value="expense" ${t.type === 'expense' ? 'selected' : ''}>Expense</option>
+            <option value="income" ${t.type === 'income' ? 'selected' : ''}>Income</option>
+          </select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+          <input type="text" id="txnDesc" required value="${(t.description || '').replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Amount</label>
+          <input type="number" id="txnAmount" required min="0" step="0.01" value="${t.amount}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
+          <select id="txnCat" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">${catOpts}</select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
+          <input type="date" id="txnDate" value="${t.date || getLocalDateString()}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-save mr-2"></i>Save</button>
+      </form>
+    `);
+    document.getElementById('txnForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const editId = document.getElementById('txnEditId')?.value;
+      if (editId) {
+        const tx = finance.transactions.find(x => x.id === editId);
+        if (tx) {
+          tx.type = document.getElementById('txnType').value;
+          tx.description = document.getElementById('txnDesc').value;
+          tx.amount = parseAmount(document.getElementById('txnAmount').value);
+          tx.category = document.getElementById('txnCat').value;
+          tx.date = document.getElementById('txnDate').value;
+          saveData('finance', finance);
+          renderFinance();
+          closeModal();
+        }
+      }
+    });
+  };
+
   window.deleteTxn = (id) => { finance.transactions = finance.transactions.filter(t => t.id !== id); saveData('finance', finance); renderFinance(); };
   
   document.getElementById('addTransactionBtn')?.addEventListener('click', () => {
+    const catOpts = TXN_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('');
     openModal('Add Transaction', `
       <form id="txnForm" class="space-y-4">
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
@@ -1697,18 +1824,31 @@ if (document.getElementById('mainContent')) {
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Amount</label>
           <input type="number" id="txnAmount" required min="0" step="0.01" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
-          <select id="txnCat" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            <option>Food</option><option>Transport</option><option>Entertainment</option><option>Shopping</option><option>Housing</option><option>Utilities</option><option>Salary</option><option>Other</option>
-          </select></div>
+          <select id="txnCat" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">${catOpts}</select></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
-          <input type="date" id="txnDate" value="${new Date().toISOString().split('T')[0]}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+          <input type="date" id="txnDate" value="${getLocalDateString()}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add</button>
       </form>
     `);
     document.getElementById('txnForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      finance.transactions.push({ id: generateId(), type: document.getElementById('txnType').value, description: document.getElementById('txnDesc').value, amount: parseAmount(document.getElementById('txnAmount').value), category: document.getElementById('txnCat').value, date: document.getElementById('txnDate').value, createdAt: Date.now() });
-      saveData('finance', finance); renderFinance(); closeModal();
+      const date = document.getElementById('txnDate').value;
+      const sameDay = (finance.transactions || []).filter(t => (t.date || '') === date);
+      const maxOrder = sameDay.length ? Math.max(...sameDay.map(t => t.sortOrder ?? t.createdAt ?? 0)) : -1;
+      finance.transactions = finance.transactions || [];
+      finance.transactions.push({
+        id: generateId(),
+        type: document.getElementById('txnType').value,
+        description: document.getElementById('txnDesc').value,
+        amount: parseAmount(document.getElementById('txnAmount').value),
+        category: document.getElementById('txnCat').value,
+        date,
+        sortOrder: maxOrder + 1,
+        createdAt: Date.now()
+      });
+      saveData('finance', finance);
+      renderFinance();
+      closeModal();
     });
   });
   
@@ -1750,7 +1890,7 @@ if (document.getElementById('mainContent')) {
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title</label>
           <input type="text" id="journalTitle" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
-          <input type="date" id="journalDate" value="${new Date().toISOString().split('T')[0]}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+          <input type="date" id="journalDate" value="${getLocalDateString()}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Content</label>
           <textarea id="journalContent" rows="6" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea></div>
         <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-save mr-2"></i>Save</button>
@@ -1788,7 +1928,7 @@ if (document.getElementById('mainContent')) {
     const data = { tasks, goals, habits, finance, journal, lifeLog, exportedAt: Date.now() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `life-erp-${new Date().toISOString().split('T')[0]}.json`; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `life-erp-${getLocalDateString()}.json`; a.click();
     URL.revokeObjectURL(url);
   });
   
