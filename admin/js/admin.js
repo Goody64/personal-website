@@ -1897,6 +1897,7 @@ if (document.getElementById('mainContent')) {
   });
 
   // Accounts
+  const sortAccounts = (arr) => [...arr].sort((a, b) => (a.sortOrder ?? a.createdAt ?? 0) - (b.sortOrder ?? b.createdAt ?? 0));
   const renderAccounts = () => {
     const container = document.getElementById('accountsContainer');
     if (!container) return;
@@ -1908,11 +1909,13 @@ if (document.getElementById('mainContent')) {
       </div>`;
       return;
     }
-    container.innerHTML = accounts.map(a => {
+    const sorted = sortAccounts(accounts);
+    container.innerHTML = sorted.map((a, idx) => {
       const bal = parseFloat(a.currentBalance) || 0;
-      return `<div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 flex items-center justify-between group">
-        <div class="flex items-center gap-4">
-          <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+      return `<div class="account-row flex items-center gap-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group" data-account-id="${a.id}" draggable="true">
+        <span class="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical text-sm"></i></span>
+        <div class="flex items-center gap-4 flex-1">
+          <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
             <i class="fas fa-${a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university'} text-blue-600 dark:text-blue-400"></i>
           </div>
           <div>
@@ -1927,6 +1930,55 @@ if (document.getElementById('mainContent')) {
         </div>
       </div>`;
     }).join('');
+    attachAccountDragListeners();
+  };
+
+  const attachAccountDragListeners = () => {
+    const rows = document.querySelectorAll('.account-row');
+    rows.forEach(row => {
+      row.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', row.dataset.accountId);
+        row.classList.add('opacity-50');
+      });
+      row.addEventListener('dragend', () => row.classList.remove('opacity-50'));
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const rect = row.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
+        row.classList.add(e.clientY < mid ? 'border-t-2 border-blue-500' : 'border-b-2 border-blue-500');
+      });
+      row.addEventListener('dragleave', (e) => {
+        if (!row.contains(e.relatedTarget)) row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
+      });
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
+        const draggedId = e.dataTransfer.getData('text/plain');
+        const targetId = row.dataset.accountId;
+        if (!draggedId || draggedId === targetId) return;
+        const allRows = [...document.querySelectorAll('.account-row')];
+        const fromIdx = allRows.findIndex(r => r.dataset.accountId === draggedId);
+        let toIdx = allRows.findIndex(r => r.dataset.accountId === targetId);
+        const rect = row.getBoundingClientRect();
+        const insertBefore = e.clientY < rect.top + rect.height / 2;
+        if (insertBefore && toIdx > fromIdx) toIdx--;
+        if (!insertBefore && toIdx < fromIdx) toIdx++;
+        if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+        const sorted = sortAccounts(finance.accounts);
+        const fromIdxA = sorted.findIndex(a => a.id === draggedId);
+        let toIdxA = sorted.findIndex(a => a.id === targetId);
+        if (insertBefore && toIdxA > fromIdxA) toIdxA--;
+        if (!insertBefore && toIdxA < fromIdxA) toIdxA++;
+        if (fromIdxA < 0 || toIdxA < 0 || fromIdxA === toIdxA) return;
+        const [moved] = sorted.splice(fromIdxA, 1);
+        sorted.splice(toIdxA, 0, moved);
+        sorted.forEach((a, i) => { a.sortOrder = i; });
+        finance.accounts = sorted;
+        saveData('finance', finance);
+        renderFinance();
+      });
+    });
   };
 
   window.updateAccountBalanceModal = (id) => {
@@ -1981,12 +2033,14 @@ if (document.getElementById('mainContent')) {
     document.getElementById('accountForm').addEventListener('submit', (e) => {
       e.preventDefault();
       const bal = parseAmount(document.getElementById('accountBalance').value);
+      const maxOrder = finance.accounts.length ? Math.max(...finance.accounts.map(a => a.sortOrder ?? 0), -1) : -1;
       finance.accounts.push({
         id: generateId(),
         name: document.getElementById('accountName').value.trim(),
         type: document.getElementById('accountType').value,
         currentBalance: bal,
         balanceHistory: [{ date: getLocalDateString(), balance: bal }],
+        sortOrder: maxOrder + 1,
         createdAt: Date.now()
       });
       saveData('finance', finance);
@@ -1997,54 +2051,91 @@ if (document.getElementById('mainContent')) {
 
   // Analytics
   let chartIncomeExpenses = null, chartCategories = null, chartNetWorth = null;
+  const CAT_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#6366f1', '#14b8a6', '#64748b', '#ef4444', '#22c55e'];
+
+  const getAnalyticsDateRange = () => {
+    const sel = document.getElementById('analyticsDateRange');
+    const val = sel?.value || 'all';
+    const today = getLocalDateString();
+    if (val === 'month') return { min: today.slice(0, 7) + '-01', max: today };
+    if (val === 'ytd') return { min: today.slice(0, 4) + '-01-01', max: today };
+    if (val === 'year') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 12);
+      const min = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      return { min, max: today };
+    }
+    return { min: '1970-01-01', max: '2099-12-31' };
+  };
+
+  const filterTxnsByRange = (txns, range) => txns.filter(t => {
+    const d = t.date || '';
+    return d >= range.min && d <= range.max;
+  });
+
+  const filterBalanceHistoryByRange = (accounts, range) => {
+    const allDates = new Set();
+    accounts.forEach(a => {
+      (a.balanceHistory || []).forEach(h => {
+        if (h.date >= range.min && h.date <= range.max) allDates.add(h.date);
+      });
+    });
+    return [...allDates].sort().filter(d => d >= range.min && d <= range.max);
+  };
+
   const renderAnalytics = () => {
-    const txns = finance.transactions || [];
+    const range = getAnalyticsDateRange();
+    const allTxns = finance.transactions || [];
+    const txns = filterTxnsByRange(allTxns, range);
     const accounts = finance.accounts || [];
     const isDark = document.documentElement.classList.contains('dark');
     const textColor = isDark ? '#94a3b8' : '#64748b';
     const gridColor = isDark ? 'rgba(148,163,184,0.1)' : 'rgba(100,116,139,0.1)';
 
-    // Income vs Expenses by month
+    // Income vs Expenses by month - stacked expenses by category
     const byMonth = {};
     txns.forEach(t => {
       const d = t.date || '';
       const m = d.slice(0, 7);
-      if (!byMonth[m]) byMonth[m] = { income: 0, expense: 0 };
+      if (!byMonth[m]) byMonth[m] = { income: 0, byCat: {} };
       if (t.type === 'income') byMonth[m].income += t.amount || 0;
-      else byMonth[m].expense += t.amount || 0;
+      else {
+        const c = t.category || 'Other';
+        byMonth[m].byCat[c] = (byMonth[m].byCat[c] || 0) + (t.amount || 0);
+      }
     });
     const months = Object.keys(byMonth).sort();
+    const allCats = [...new Set(txns.filter(t => t.type === 'expense').map(t => t.category || 'Other'))].sort();
     const incomeData = months.length ? months.map(m => byMonth[m].income) : [0];
-    const expenseData = months.length ? months.map(m => byMonth[m].expense) : [0];
     const monthLabels = months.length ? months.map(m => {
       const [y, mo] = m.split('-');
       return new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
     }) : ['No data'];
+
+    const datasets = [{ label: 'Income', data: incomeData, backgroundColor: 'rgba(34,197,94,0.6)', borderColor: 'rgb(34,197,94)', stack: 'income' }];
+    allCats.forEach((cat, i) => {
+      const data = months.map(m => byMonth[m].byCat[cat] || 0);
+      datasets.push({ label: cat, data, backgroundColor: CAT_COLORS[i % CAT_COLORS.length], stack: 'expense' });
+    });
 
     const ctx1 = document.getElementById('chartIncomeExpenses');
     if (ctx1) {
       if (chartIncomeExpenses) chartIncomeExpenses.destroy();
       chartIncomeExpenses = new Chart(ctx1, {
         type: 'bar',
-        data: {
-          labels: monthLabels,
-          datasets: [
-            { label: 'Income', data: incomeData, backgroundColor: 'rgba(34,197,94,0.6)', borderColor: 'rgb(34,197,94)' },
-            { label: 'Expenses', data: expenseData, backgroundColor: 'rgba(239,68,68,0.6)', borderColor: 'rgb(239,68,68)' }
-          ]
-        },
+        data: { labels: monthLabels, datasets },
         options: {
           responsive: true,
           plugins: { legend: { labels: { color: textColor } } },
           scales: {
-            x: { grid: { color: gridColor }, ticks: { color: textColor } },
-            y: { grid: { color: gridColor }, ticks: { color: textColor } }
+            x: { grid: { color: gridColor }, ticks: { color: textColor }, stacked: true },
+            y: { grid: { color: gridColor }, ticks: { color: textColor }, stacked: true }
           }
         }
       });
     }
 
-    // Spending by category (expenses only)
+    // Spending by category (expenses only) - filtered by range
     const byCat = {};
     txns.filter(t => t.type === 'expense').forEach(t => {
       const c = t.category || 'Other';
@@ -2058,7 +2149,7 @@ if (document.getElementById('mainContent')) {
         type: 'doughnut',
         data: {
           labels: cats.map(([c]) => c),
-          datasets: [{ data: cats.map(([, v]) => v), backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#6366f1', '#14b8a6', '#64748b'] }]
+          datasets: [{ data: cats.map(([, v]) => v), backgroundColor: CAT_COLORS }]
         },
         options: {
           responsive: true,
@@ -2067,12 +2158,8 @@ if (document.getElementById('mainContent')) {
       });
     }
 
-    // Net worth from account balance history
-    const allDates = new Set();
-    accounts.forEach(a => {
-      (a.balanceHistory || []).forEach(h => allDates.add(h.date));
-    });
-    const sortedDates = [...allDates].sort();
+    // Net worth - filtered by range
+    const sortedDates = filterBalanceHistoryByRange(accounts, range);
     const netWorthByDate = {};
     sortedDates.forEach(d => {
       let total = 0;
@@ -2106,6 +2193,8 @@ if (document.getElementById('mainContent')) {
       });
     }
   };
+
+  document.getElementById('analyticsDateRange')?.addEventListener('change', () => renderAnalytics());
   
   // ========================================
   // Journal

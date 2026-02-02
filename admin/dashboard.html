@@ -572,10 +572,18 @@
           
           <!-- Analytics Panel -->
           <div id="financePanelAnalytics" class="finance-panel hidden">
-            <h3 class="font-semibold text-slate-900 dark:text-white mb-4">Money Over Time</h3>
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+              <h3 class="font-semibold text-slate-900 dark:text-white">Money Over Time</h3>
+              <select id="analyticsDateRange" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+                <option value="month">This month</option>
+                <option value="ytd">YTD (Jan–today)</option>
+                <option value="year">Last 12 months</option>
+                <option value="all" selected>All time</option>
+              </select>
+            </div>
             <div id="analyticsCharts" class="space-y-6">
               <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
-                <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-4">Income vs Expenses (by month)</h4>
+                <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-4">Income vs Expenses (expenses stacked by category)</h4>
                 <canvas id="chartIncomeExpenses" height="200"></canvas>
               </div>
               <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
