@@ -13,7 +13,8 @@ const STORAGE_KEYS = {
   theme: 'lifeErp_theme',
   notifications: 'lifeErp_notifications',
   collapsedAccounts: 'lifeErp_collapsedAccounts',
-  healthGoals: 'lifeErp_healthGoals'
+  healthGoals: 'lifeErp_healthGoals',
+  customHealthMetrics: 'lifeErp_customHealthMetrics'
 };
 
 // Default health goals
@@ -383,8 +384,8 @@ if (document.getElementById('mainContent')) {
     const icon = document.getElementById('themeIcon');
     if (!icon) return;
     const isDark = html.classList.contains('dark');
-    icon.classList.remove('fa-moon', 'fa-sun');
-    icon.classList.add(isDark ? 'fa-sun' : 'fa-moon');
+    icon.classList.remove('fa-lightbulb', 'fa-moon');
+    icon.classList.add(isDark ? 'fa-lightbulb' : 'fa-moon');
   };
   if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     html.classList.add('dark');
@@ -907,18 +908,38 @@ if (document.getElementById('mainContent')) {
       </form>
     `);
     
+    const getCustomHealthMetrics = () => {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.customHealthMetrics) || '[]'); } catch { return []; }
+    };
+    const saveCustomHealthMetric = (metric) => {
+      const list = getCustomHealthMetrics();
+      if (!list.includes(metric)) {
+        list.push(metric);
+        localStorage.setItem(STORAGE_KEYS.customHealthMetrics, JSON.stringify(list));
+      }
+    };
+    
     const updateFields = () => {
       const type = document.getElementById('logType').value;
       const t = ACTIVITY_TYPES[type];
       const category = document.getElementById('field_category')?.value || 'Job';
       document.getElementById('dynamicFields').innerHTML = t.fields.map(f => {
         if (f.type === 'select') {
-          let opts = f.options;
+          let opts = [...f.options];
           if (type === 'work' && f.key === 'subtype') opts = WORK_SUBTYPES[category] || WORK_SUBTYPES.Job;
+          // Add custom health metrics
+          if (type === 'health' && f.key === 'metric') {
+            const customMetrics = getCustomHealthMetrics();
+            customMetrics.forEach(cm => { if (!opts.includes(cm)) opts.push(cm); });
+            opts = opts.filter(o => o !== 'Other'); // Remove default Other
+            opts.push('+ Add Custom...');
+          }
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
             <select id="field_${f.key}" ${f.required ? 'required' : ''} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
               ${opts.map(o => `<option value="${o}">${o}</option>`).join('')}
-            </select></div>`;
+            </select>
+            ${type === 'health' && f.key === 'metric' ? '<input type="text" id="customMetricInput" placeholder="Enter custom metric name..." class="hidden mt-2 w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">' : ''}
+            </div>`;
         } else if (f.type === 'textarea') {
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
             <textarea id="field_${f.key}" rows="2" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea></div>`;
@@ -948,6 +969,21 @@ if (document.getElementById('mainContent')) {
           sub.innerHTML = opts.map(o => `<option value="${o}">${o}</option>`).join('');
         }
       }
+      // Handle custom health metric
+      if (e.target.id === 'field_metric') {
+        const customInput = document.getElementById('customMetricInput');
+        if (customInput) {
+          if (e.target.value === '+ Add Custom...') {
+            customInput.classList.remove('hidden');
+            customInput.required = true;
+            customInput.focus();
+          } else {
+            customInput.classList.add('hidden');
+            customInput.required = false;
+            customInput.value = '';
+          }
+        }
+      }
     });
     
     document.getElementById('logForm').addEventListener('submit', (e) => {
@@ -959,6 +995,18 @@ if (document.getElementById('mainContent')) {
         const el = document.getElementById(`field_${f.key}`);
         if (el) data[f.key] = f.type === 'checkbox' ? el.checked : (f.type === 'number' ? (f.key === 'amount' ? parseAmount(el.value) : f.key === 'repeat' ? Math.max(0, parseInt(el.value, 10) || 0) : parseFloat(el.value) || 0) : el.value);
       });
+      
+      // Handle custom health metric
+      if (type === 'health' && data.metric === '+ Add Custom...') {
+        const customInput = document.getElementById('customMetricInput');
+        const customMetric = customInput?.value?.trim();
+        if (!customMetric) {
+          alert('Please enter a custom metric name.');
+          return;
+        }
+        data.metric = customMetric;
+        saveCustomHealthMetric(customMetric);
+      }
       
       const date = document.getElementById('logDate').value;
       const addToFinance = data.addToFinance;
@@ -1685,6 +1733,52 @@ if (document.getElementById('mainContent')) {
   // ========================================
   // Habits
   // ========================================
+  const isHabitDoneToday = (h) => {
+    const today = getLocalDateString();
+    return (h.completions || []).includes(today);
+  };
+  
+  const calculateStreak = (h) => {
+    const completions = (h.completions || []).sort().reverse();
+    if (completions.length === 0) return 0;
+    
+    const today = getLocalDateString();
+    const yesterday = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    })();
+    
+    // Streak must start from today or yesterday
+    if (completions[0] !== today && completions[0] !== yesterday) return 0;
+    
+    let streak = 0;
+    let checkDate = completions[0] === today ? today : yesterday;
+    
+    for (const comp of completions) {
+      if (comp === checkDate) {
+        streak++;
+        // Move to previous day
+        const d = parseLocalDate(checkDate);
+        d.setDate(d.getDate() - 1);
+        checkDate = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+    }
+    return streak;
+  };
+  
+  const getWeekCompletions = (h) => {
+    const completions = h.completions || [];
+    const week = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      week.push({ date: dateStr, done: completions.includes(dateStr), day: ['S', 'M', 'T', 'W', 'T', 'F', 'S'][d.getDay()] });
+    }
+    return week;
+  };
+  
   const renderHabits = () => {
     const container = document.getElementById('habitsContainer');
     if (!container) return;
@@ -1693,35 +1787,71 @@ if (document.getElementById('mainContent')) {
       container.innerHTML = `<div class="text-center py-16 text-slate-400">
         <i class="fas fa-sync-alt text-5xl mb-4 opacity-50"></i>
         <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No habits tracked</h3>
-        <button onclick="addHabitModal()" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg"><i class="fas fa-plus mr-2"></i>Add Habit</button>
+        <p class="text-sm mb-4">Build better habits by tracking them daily</p>
+        <button onclick="addHabitModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg"><i class="fas fa-plus mr-2"></i>Add Habit</button>
       </div>`;
       return;
     }
     
-    container.innerHTML = `<div class="space-y-3">${habits.map(h => `
-      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 flex items-center gap-4 group">
-        <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: ${h.color}20">
-          <i class="fas fa-check text-lg" style="color: ${h.color}"></i>
+    const today = getLocalDateString();
+    container.innerHTML = `<div class="space-y-3">${habits.map(h => {
+      const doneToday = isHabitDoneToday(h);
+      const streak = calculateStreak(h);
+      const week = getWeekCompletions(h);
+      return `
+      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 ${doneToday ? 'ring-2 ring-green-500/50' : ''} group">
+        <div class="flex items-center gap-4">
+          <button onclick="toggleHabit('${h.id}')" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all ${doneToday ? 'bg-green-500' : ''}" style="background: ${doneToday ? '' : h.color + '20'}" title="${doneToday ? 'Undo' : 'Mark as done'}">
+            <i class="fas ${doneToday ? 'fa-check text-white' : 'fa-circle'} text-lg" style="color: ${doneToday ? '' : h.color}"></i>
+          </button>
+          <div class="flex-1 min-w-0">
+            <h4 class="font-medium text-slate-900 dark:text-white ${doneToday ? 'line-through opacity-60' : ''}">${(h.name || '').replace(/</g, '&lt;')}</h4>
+            <p class="text-sm text-slate-500 dark:text-slate-400">${h.frequency}</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 ${streak > 0 ? 'text-orange-500' : 'text-slate-400'}"><i class="fas fa-fire"></i><span class="font-bold">${streak}</span></div>
+            <button onclick="deleteHabit('${h.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"><i class="fas fa-trash text-xs"></i></button>
+          </div>
         </div>
-        <div class="flex-1">
-          <h4 class="font-medium text-slate-900 dark:text-white">${h.name}</h4>
-          <p class="text-sm text-slate-500 dark:text-slate-400">${h.frequency}</p>
+        <div class="flex items-center gap-1 mt-3 justify-center">
+          ${week.map(d => `<div class="flex flex-col items-center">
+            <span class="text-[10px] text-slate-400 mb-1">${d.day}</span>
+            <div class="w-6 h-6 rounded-full flex items-center justify-center ${d.done ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700'} ${d.date === today ? 'ring-2 ring-blue-500' : ''}">
+              ${d.done ? '<i class="fas fa-check text-white text-xs"></i>' : ''}
+            </div>
+          </div>`).join('')}
         </div>
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-2 text-orange-500"><i class="fas fa-fire"></i><span class="font-bold">${h.streak || 0}</span></div>
-          <button onclick="deleteHabit('${h.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-500"><i class="fas fa-trash text-xs"></i></button>
-        </div>
-      </div>
-    `).join('')}</div>`;
+      </div>`;
+    }).join('')}</div>`;
   };
   
-  window.deleteHabit = (id) => { habits = habits.filter(h => h.id !== id); saveData('habits', habits); renderHabits(); };
+  window.toggleHabit = (id) => {
+    const h = habits.find(x => x.id === id);
+    if (!h) return;
+    h.completions = h.completions || [];
+    const today = getLocalDateString();
+    if (h.completions.includes(today)) {
+      h.completions = h.completions.filter(d => d !== today);
+    } else {
+      h.completions.push(today);
+    }
+    h.streak = calculateStreak(h);
+    saveData('habits', habits);
+    renderHabits();
+  };
+  
+  window.deleteHabit = (id) => { 
+    if (!confirm('Delete this habit and all its history?')) return;
+    habits = habits.filter(h => h.id !== id); 
+    saveData('habits', habits); 
+    renderHabits(); 
+  };
   
   window.addHabitModal = () => {
     openModal('Add Habit', `
       <form id="habitForm" class="space-y-4">
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
-          <input type="text" id="habitName" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+          <input type="text" id="habitName" required placeholder="e.g., Drink 8 glasses of water" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Frequency</label>
           <select id="habitFreq" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
             <option value="Daily">Daily</option><option value="Weekdays">Weekdays</option><option value="Weekly">Weekly</option>
@@ -1733,8 +1863,18 @@ if (document.getElementById('mainContent')) {
     `);
     document.getElementById('habitForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      habits.push({ id: generateId(), name: document.getElementById('habitName').value, frequency: document.getElementById('habitFreq').value, color: document.getElementById('habitColor').value, streak: 0, createdAt: Date.now() });
-      saveData('habits', habits); renderHabits(); closeModal();
+      habits.push({ 
+        id: generateId(), 
+        name: document.getElementById('habitName').value, 
+        frequency: document.getElementById('habitFreq').value, 
+        color: document.getElementById('habitColor').value, 
+        streak: 0, 
+        completions: [],
+        createdAt: Date.now() 
+      });
+      saveData('habits', habits); 
+      renderHabits(); 
+      closeModal();
     });
   };
   document.getElementById('addHabitBtn')?.addEventListener('click', addHabitModal);
@@ -2077,8 +2217,8 @@ if (document.getElementById('mainContent')) {
             startCollapsed: collapsed
           })}
           <div class="account-slot-expand mt-2 space-y-2 ${collapsed ? 'hidden' : ''}" id="${groupId}">`;
-        group.forEach(a => {
-          html += renderAccountRow(a, parseFloat(a.currentBalance) || 0);
+        group.forEach((a, idx) => {
+          html += renderAccountRow(a, parseFloat(a.currentBalance) || 0, idx === 0, idx === group.length - 1);
         });
         html += '</div></div>';
       } else {
@@ -2103,8 +2243,12 @@ if (document.getElementById('mainContent')) {
     attachAccountDragListeners();
   };
 
-  const renderAccountRow = (a, bal) => {
-    return `<div class="flex items-center gap-2 p-5 pl-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group account-subrow">
+  const renderAccountRow = (a, bal, isFirst, isLast) => {
+    return `<div class="flex items-center gap-2 p-5 pl-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group account-subrow" data-account-id="${a.id}">
+      <div class="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100">
+        <button onclick="moveAccountInGroup('${a.id}', -1)" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 ${isFirst ? 'invisible' : ''}" title="Move up"><i class="fas fa-chevron-up text-xs"></i></button>
+        <button onclick="moveAccountInGroup('${a.id}', 1)" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 ${isLast ? 'invisible' : ''}" title="Move down"><i class="fas fa-chevron-down text-xs"></i></button>
+      </div>
       <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
         <i class="fas fa-${a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university'} text-blue-600 dark:text-blue-400"></i>
       </div>
@@ -2120,17 +2264,44 @@ if (document.getElementById('mainContent')) {
       </div>
     </div>`;
   };
+  
+  window.moveAccountInGroup = (id, direction) => {
+    const account = finance.accounts.find(a => a.id === id);
+    if (!account) return;
+    const inst = (account.institution || '').trim() || '__ungrouped__';
+    const groupAccounts = finance.accounts.filter(a => ((a.institution || '').trim() || '__ungrouped__') === inst);
+    groupAccounts.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const idx = groupAccounts.findIndex(a => a.id === id);
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= groupAccounts.length) return;
+    // Swap sortOrder values
+    const tempSort = groupAccounts[idx].sortOrder;
+    groupAccounts[idx].sortOrder = groupAccounts[newIdx].sortOrder;
+    groupAccounts[newIdx].sortOrder = tempSort;
+    saveData('finance', finance);
+    renderFinance();
+  };
 
   const attachAccountDragListeners = () => {
     const container = document.getElementById('accountsContainer');
     if (!container) return;
     let draggedData = null;
 
-    const getSlots = () => [...container.querySelectorAll('.account-slot-wrapper')];
+    const getSlots = () => [...container.querySelectorAll(':scope > .account-slot-wrapper')];
     const clearDropIndicators = () => {
       container.querySelectorAll('.account-slot-wrapper').forEach(w => {
         w.classList.remove('border-t-4', 'border-b-4', 'border-blue-500');
       });
+    };
+
+    // Get account IDs for a slot (institution = multiple, single = one)
+    const getAccountIdsForSlot = (slotData) => {
+      if (slotData.startsWith('inst:')) {
+        const instName = slotData.slice(5);
+        return finance.accounts.filter(a => ((a.institution || '').trim() || '__ungrouped__') === instName).map(a => a.id);
+      } else {
+        return [slotData.slice(4)];
+      }
     };
 
     container.querySelectorAll('.account-slot').forEach(slot => {
@@ -2150,7 +2321,7 @@ if (document.getElementById('mainContent')) {
       });
     });
 
-    container.querySelectorAll('.account-slot-wrapper').forEach(wrapper => {
+    container.querySelectorAll(':scope > .account-slot-wrapper').forEach(wrapper => {
       wrapper.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
@@ -2183,27 +2354,25 @@ if (document.getElementById('mainContent')) {
         if (toIdx > fromIdx) toIdx--;
         if (fromIdx === toIdx) return;
 
-        const sorted = sortAccounts(finance.accounts);
-        const slotOrder = slots.map(s => s.dataset.drag);
-        const movedIds = dragData.startsWith('inst:') 
-          ? finance.accounts.filter(a => ((a.institution || '').trim() || '__ungrouped__') === dragData.slice(5)).map(a => a.id) 
-          : [dragData.slice(4)];
-        const reordered = sorted.filter(a => !movedIds.includes(a.id));
-        const toInsert = sorted.filter(a => movedIds.includes(a.id));
+        // Build new order: collect slot data in visual order, then remap to account IDs
+        const slotDataOrder = slots.map(s => s.dataset.drag);
+        // Remove dragged item
+        slotDataOrder.splice(fromIdx, 1);
+        // Insert at new position
+        slotDataOrder.splice(toIdx, 0, dragData);
         
-        let accountInsertPos = 0;
-        for (let i = 0; i <= toIdx && i < slotOrder.length; i++) {
-          const d = slotOrder[i];
-          if (d === dragData) continue;
-          if (d.startsWith('inst:')) {
-            accountInsertPos += finance.accounts.filter(a => ((a.institution || '').trim() || '__ungrouped__') === d.slice(5)).length;
-          } else {
-            accountInsertPos++;
-          }
-        }
-        reordered.splice(accountInsertPos, 0, ...toInsert);
-        reordered.forEach((a, i) => { a.sortOrder = i; });
-        finance.accounts = reordered;
+        // Convert slot order to account ID order
+        const newAccountOrder = [];
+        slotDataOrder.forEach(sd => {
+          getAccountIdsForSlot(sd).forEach(id => {
+            const acc = finance.accounts.find(a => a.id === id);
+            if (acc && !newAccountOrder.includes(acc)) newAccountOrder.push(acc);
+          });
+        });
+        
+        // Assign new sortOrder
+        newAccountOrder.forEach((a, i) => { a.sortOrder = i; });
+        finance.accounts = newAccountOrder;
         saveData('finance', finance);
         renderFinance();
       });

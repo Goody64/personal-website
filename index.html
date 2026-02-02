@@ -670,8 +670,8 @@
     const updateThemeIcon = () => {
       if (!themeIcon) return;
       const isDark = html.classList.contains('dark');
-      themeIcon.classList.remove('fa-moon', 'fa-sun');
-      themeIcon.classList.add(isDark ? 'fa-sun' : 'fa-moon');
+      themeIcon.classList.remove('fa-lightbulb', 'fa-moon');
+      themeIcon.classList.add(isDark ? 'fa-lightbulb' : 'fa-moon');
     };
     
     // Check for saved preference or system preference
