@@ -354,7 +354,9 @@ if (document.getElementById('mainContent')) {
   let tasks = data ? (data.tasks ?? []) : (getFromStorage(STORAGE_KEYS.tasks) || []);
   let goals = data ? (data.goals ?? []) : (getFromStorage(STORAGE_KEYS.goals) || []);
   let habits = data ? (data.habits ?? []) : (getFromStorage(STORAGE_KEYS.habits) || []);
-  let finance = data ? (data.finance ?? { transactions: [] }) : (getFromStorage(STORAGE_KEYS.finance) || { transactions: [] });
+  let finance = data ? (data.finance ?? { transactions: [], accounts: [] }) : (getFromStorage(STORAGE_KEYS.finance) || { transactions: [], accounts: [] });
+  finance.transactions = finance.transactions || [];
+  finance.accounts = finance.accounts || [];
   let journal = data ? (data.journal ?? []) : (getFromStorage(STORAGE_KEYS.journal) || []);
   let lifeLog = data ? (data.lifeLog ?? []) : (getFromStorage(STORAGE_KEYS.lifeLog) || []);
   
@@ -396,6 +398,7 @@ if (document.getElementById('mainContent')) {
     // Render section-specific content
     if (id === 'lifelog') { renderCalendar(); renderDayDetail(); }
     if (id === 'library') renderLibrary();
+    if (id === 'finance') renderFinance();
     if (id === 'settings') { updateCloudSyncStatus(); updateProfileSection(); }
   };
   window.showSection = showSection;
@@ -1071,7 +1074,7 @@ if (document.getElementById('mainContent')) {
     finance.transactions = finance.transactions || [];
     finance.transactions = finance.transactions.filter(tx => tx._lifeLogEntryId !== id);
     saveData('finance', finance);
-    if (document.getElementById('financeSection')) renderFinance();
+    if (document.getElementById('finance')) renderFinance();
     
     lifeLog = lifeLog.filter(e => e.id !== id);
     saveData('lifeLog', lifeLog);
@@ -1656,7 +1659,8 @@ if (document.getElementById('mainContent')) {
   // ========================================
   // Finance
   // ========================================
-  const TXN_CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Housing', 'Utilities', 'Salary', 'Other'];
+  const TXN_CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Housing', 'Utilities', 'Salary', 'Interest', 'Other'];
+  const ACCOUNT_TYPES = ['checking', 'savings', 'brokerage', 'cash', 'other'];
   const getTxnSortKey = (t) => [t.date, (t.sortOrder ?? t.createdAt ?? 0)];
   const sortTxns = (arr) => [...arr].sort((a, b) => {
     const [da, oa] = getTxnSortKey(a);
@@ -1664,6 +1668,23 @@ if (document.getElementById('mainContent')) {
     if (da !== db) return new Date(db) - new Date(da);
     return (oa || 0) - (ob || 0);
   });
+
+  const showFinanceTab = (tab) => {
+    document.querySelectorAll('.finance-tab-btn').forEach(b => {
+      b.classList.toggle('bg-blue-600', b.dataset.financeTab === tab);
+      b.classList.toggle('text-white', b.dataset.financeTab === tab);
+      b.classList.toggle('bg-slate-100', b.dataset.financeTab !== tab);
+      b.classList.toggle('dark:bg-slate-700', b.dataset.financeTab !== tab);
+      b.classList.toggle('text-slate-600', b.dataset.financeTab !== tab);
+      b.classList.toggle('dark:text-slate-300', b.dataset.financeTab !== tab);
+    });
+    document.getElementById('financeStats').classList.toggle('hidden', tab !== 'transactions');
+    document.getElementById('financePanelTransactions').classList.toggle('hidden', tab !== 'transactions');
+    document.getElementById('financePanelAccounts').classList.toggle('hidden', tab !== 'accounts');
+    document.getElementById('financePanelAnalytics').classList.toggle('hidden', tab !== 'analytics');
+    if (tab === 'accounts') renderAccounts();
+    if (tab === 'analytics') renderAnalytics();
+  };
 
   const renderFinance = () => {
     const container = document.getElementById('transactionsContainer');
@@ -1704,7 +1725,7 @@ if (document.getElementById('mainContent')) {
         </div>
         <div class="flex-1 min-w-0">
           <p class="font-medium text-slate-900 dark:text-white text-sm truncate">${t.description}</p>
-          <p class="text-xs text-slate-500">${t.category}</p>
+          <p class="text-xs text-slate-500">${t.category}${t.receiptUrl ? ` · <a href="${(t.receiptUrl || '').replace(/"/g, '&quot;')}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">Receipt</a>` : ''}</p>
         </div>
         <p class="font-bold flex-shrink-0 ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</p>
         <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100">
@@ -1717,6 +1738,7 @@ if (document.getElementById('mainContent')) {
     });
     container.innerHTML = html;
     attachTxnDragListeners();
+    if (document.getElementById('accountsContainer')) renderAccounts();
   };
 
   const attachTxnDragListeners = () => {
@@ -1767,10 +1789,16 @@ if (document.getElementById('mainContent')) {
     });
   };
 
+  const getAccountOpts = (selectedId) => {
+    const opts = finance.accounts.map(a => `<option value="${a.id}" ${a.id === selectedId ? 'selected' : ''}>${(a.name || 'Account').replace(/</g, '&lt;')} (${a.type})</option>`).join('');
+    return `<option value="">— None —</option>${opts}`;
+  };
+
   window.editTxn = (id) => {
     const t = finance.transactions.find(x => x.id === id);
     if (!t) return;
     const catOpts = TXN_CATEGORIES.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('');
+    const acctOpts = getAccountOpts(t.accountId);
     openModal('Edit Transaction', `
       <form id="txnForm" class="space-y-4">
         <input type="hidden" id="txnEditId" value="${t.id}">
@@ -1785,6 +1813,10 @@ if (document.getElementById('mainContent')) {
           <input type="number" id="txnAmount" required min="0" step="0.01" value="${t.amount}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
           <select id="txnCat" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">${catOpts}</select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Account (optional)</label>
+          <select id="txnAccount" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">${acctOpts}</select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Receipt URL (optional)</label>
+          <input type="url" id="txnReceiptUrl" placeholder="https://..." value="${(t.receiptUrl || '').replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
           <input type="date" id="txnDate" value="${t.date || getLocalDateString()}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-save mr-2"></i>Save</button>
@@ -1800,6 +1832,8 @@ if (document.getElementById('mainContent')) {
           tx.description = document.getElementById('txnDesc').value;
           tx.amount = parseAmount(document.getElementById('txnAmount').value);
           tx.category = document.getElementById('txnCat').value;
+          tx.accountId = document.getElementById('txnAccount')?.value || null;
+          tx.receiptUrl = (document.getElementById('txnReceiptUrl')?.value || '').trim() || null;
           tx.date = document.getElementById('txnDate').value;
           saveData('finance', finance);
           renderFinance();
@@ -1813,6 +1847,7 @@ if (document.getElementById('mainContent')) {
   
   document.getElementById('addTransactionBtn')?.addEventListener('click', () => {
     const catOpts = TXN_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('');
+    const acctOpts = getAccountOpts(null);
     openModal('Add Transaction', `
       <form id="txnForm" class="space-y-4">
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
@@ -1825,6 +1860,10 @@ if (document.getElementById('mainContent')) {
           <input type="number" id="txnAmount" required min="0" step="0.01" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
           <select id="txnCat" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">${catOpts}</select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Account (optional)</label>
+          <select id="txnAccount" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">${acctOpts}</select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Receipt URL (optional)</label>
+          <input type="url" id="txnReceiptUrl" placeholder="https://..." class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
           <input type="date" id="txnDate" value="${getLocalDateString()}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add</button>
@@ -1842,6 +1881,8 @@ if (document.getElementById('mainContent')) {
         description: document.getElementById('txnDesc').value,
         amount: parseAmount(document.getElementById('txnAmount').value),
         category: document.getElementById('txnCat').value,
+        accountId: document.getElementById('txnAccount')?.value || null,
+        receiptUrl: (document.getElementById('txnReceiptUrl')?.value || '').trim() || null,
         date,
         sortOrder: maxOrder + 1,
         createdAt: Date.now()
@@ -1851,6 +1892,222 @@ if (document.getElementById('mainContent')) {
       closeModal();
     });
   });
+
+  // Finance tab switching
+  document.querySelectorAll('.finance-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => showFinanceTab(btn.dataset.financeTab));
+  });
+
+  // Accounts
+  const renderAccounts = () => {
+    const container = document.getElementById('accountsContainer');
+    if (!container) return;
+    const accounts = finance.accounts || [];
+    if (accounts.length === 0) {
+      container.innerHTML = `<div class="bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 text-center text-slate-400">
+        <i class="fas fa-university text-4xl mb-3 opacity-50"></i>
+        <p>No accounts yet. Add checking, savings, brokerage, etc.</p>
+      </div>`;
+      return;
+    }
+    container.innerHTML = accounts.map(a => {
+      const bal = parseFloat(a.currentBalance) || 0;
+      return `<div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 flex items-center justify-between group">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+            <i class="fas fa-${a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university'} text-blue-600 dark:text-blue-400"></i>
+          </div>
+          <div>
+            <p class="font-semibold text-slate-900 dark:text-white">${(a.name || 'Account').replace(/</g, '&lt;')}</p>
+            <p class="text-xs text-slate-500 capitalize">${a.type || 'other'}</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <p class="font-bold text-slate-900 dark:text-white">${formatCurrency(bal)}</p>
+          <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
+          <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>
+        </div>
+      </div>`;
+    }).join('');
+  };
+
+  window.updateAccountBalanceModal = (id) => {
+    const a = finance.accounts.find(x => x.id === id);
+    if (!a) return;
+    const bal = parseFloat(a.currentBalance) || 0;
+    openModal('Update Balance: ' + (a.name || 'Account'), `
+      <form id="accountBalanceForm" class="space-y-4">
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Current balance (as of today)</label>
+          <input type="number" id="accountBalance" step="0.01" value="${bal}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <p class="text-xs text-slate-500">This adds a snapshot for the net worth graph. Brokerage = enter current value; interest = log as income in Transactions.</p>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-save mr-2"></i>Save</button>
+      </form>
+    `);
+    document.getElementById('accountBalanceForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const val = parseAmount(document.getElementById('accountBalance').value);
+      a.currentBalance = val;
+      a.balanceHistory = a.balanceHistory || [];
+      a.balanceHistory.push({ date: getLocalDateString(), balance: val });
+      saveData('finance', finance);
+      renderFinance();
+      closeModal();
+    });
+  };
+
+  window.deleteAccount = (id) => {
+    if (!confirm('Delete this account?')) return;
+    finance.accounts = finance.accounts.filter(a => a.id !== id);
+    saveData('finance', finance);
+    renderFinance();
+  };
+
+  document.getElementById('addAccountBtn')?.addEventListener('click', () => {
+    openModal('Add Account', `
+      <form id="accountForm" class="space-y-4">
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
+          <input type="text" id="accountName" required placeholder="e.g. Chase Checking" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
+          <select id="accountType" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <option value="checking">Checking</option>
+            <option value="savings">Savings</option>
+            <option value="brokerage">Brokerage</option>
+            <option value="cash">Cash</option>
+            <option value="other">Other</option>
+          </select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Current balance</label>
+          <input type="number" id="accountBalance" step="0.01" value="0" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add</button>
+      </form>
+    `);
+    document.getElementById('accountForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const bal = parseAmount(document.getElementById('accountBalance').value);
+      finance.accounts.push({
+        id: generateId(),
+        name: document.getElementById('accountName').value.trim(),
+        type: document.getElementById('accountType').value,
+        currentBalance: bal,
+        balanceHistory: [{ date: getLocalDateString(), balance: bal }],
+        createdAt: Date.now()
+      });
+      saveData('finance', finance);
+      renderFinance();
+      closeModal();
+    });
+  });
+
+  // Analytics
+  let chartIncomeExpenses = null, chartCategories = null, chartNetWorth = null;
+  const renderAnalytics = () => {
+    const txns = finance.transactions || [];
+    const accounts = finance.accounts || [];
+    const isDark = document.documentElement.classList.contains('dark');
+    const textColor = isDark ? '#94a3b8' : '#64748b';
+    const gridColor = isDark ? 'rgba(148,163,184,0.1)' : 'rgba(100,116,139,0.1)';
+
+    // Income vs Expenses by month
+    const byMonth = {};
+    txns.forEach(t => {
+      const d = t.date || '';
+      const m = d.slice(0, 7);
+      if (!byMonth[m]) byMonth[m] = { income: 0, expense: 0 };
+      if (t.type === 'income') byMonth[m].income += t.amount || 0;
+      else byMonth[m].expense += t.amount || 0;
+    });
+    const months = Object.keys(byMonth).sort();
+    const incomeData = months.length ? months.map(m => byMonth[m].income) : [0];
+    const expenseData = months.length ? months.map(m => byMonth[m].expense) : [0];
+    const monthLabels = months.length ? months.map(m => {
+      const [y, mo] = m.split('-');
+      return new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    }) : ['No data'];
+
+    const ctx1 = document.getElementById('chartIncomeExpenses');
+    if (ctx1) {
+      if (chartIncomeExpenses) chartIncomeExpenses.destroy();
+      chartIncomeExpenses = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: monthLabels,
+          datasets: [
+            { label: 'Income', data: incomeData, backgroundColor: 'rgba(34,197,94,0.6)', borderColor: 'rgb(34,197,94)' },
+            { label: 'Expenses', data: expenseData, backgroundColor: 'rgba(239,68,68,0.6)', borderColor: 'rgb(239,68,68)' }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: textColor } } },
+          scales: {
+            x: { grid: { color: gridColor }, ticks: { color: textColor } },
+            y: { grid: { color: gridColor }, ticks: { color: textColor } }
+          }
+        }
+      });
+    }
+
+    // Spending by category (expenses only)
+    const byCat = {};
+    txns.filter(t => t.type === 'expense').forEach(t => {
+      const c = t.category || 'Other';
+      byCat[c] = (byCat[c] || 0) + (t.amount || 0);
+    });
+    const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+    const ctx2 = document.getElementById('chartCategories');
+    if (ctx2) {
+      if (chartCategories) chartCategories.destroy();
+      chartCategories = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: cats.map(([c]) => c),
+          datasets: [{ data: cats.map(([, v]) => v), backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#6366f1', '#14b8a6', '#64748b'] }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: textColor } } }
+        }
+      });
+    }
+
+    // Net worth from account balance history
+    const allDates = new Set();
+    accounts.forEach(a => {
+      (a.balanceHistory || []).forEach(h => allDates.add(h.date));
+    });
+    const sortedDates = [...allDates].sort();
+    const netWorthByDate = {};
+    sortedDates.forEach(d => {
+      let total = 0;
+      accounts.forEach(a => {
+        const hist = (a.balanceHistory || []).filter(h => h.date <= d).sort((x, y) => x.date.localeCompare(y.date));
+        const last = hist[hist.length - 1];
+        if (last) total += parseFloat(last.balance) || 0;
+      });
+      netWorthByDate[d] = total;
+    });
+    const nwLabels = sortedDates.length ? sortedDates.map(d => formatDateShort(d)) : ['No data'];
+    const nwData = sortedDates.length ? sortedDates.map(d => netWorthByDate[d]) : [0];
+
+    const ctx3 = document.getElementById('chartNetWorth');
+    if (ctx3) {
+      if (chartNetWorth) chartNetWorth.destroy();
+      chartNetWorth = new Chart(ctx3, {
+        type: 'line',
+        data: {
+          labels: nwLabels,
+          datasets: [{ label: 'Net Worth', data: nwData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: textColor } } },
+          scales: {
+            x: { grid: { color: gridColor }, ticks: { color: textColor } },
+            y: { grid: { color: gridColor }, ticks: { color: textColor, callback: v => '$' + v } }
+          }
+        }
+      });
+    }
+  };
   
   // ========================================
   // Journal
@@ -1935,9 +2192,9 @@ if (document.getElementById('mainContent')) {
   document.getElementById('clearData')?.addEventListener('click', async () => {
     if (confirm('Clear all data? This cannot be undone.')) {
       Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
-      tasks = []; goals = []; habits = []; finance = { transactions: [] }; journal = []; lifeLog = [];
+      tasks = []; goals = []; habits = []; finance = { transactions: [], accounts: [] }; journal = []; lifeLog = [];
       await saveData('tasks', []); await saveData('goals', []); await saveData('habits', []);
-      await saveData('finance', { transactions: [] }); await saveData('journal', []); await saveData('lifeLog', []);
+      await saveData('finance', { transactions: [], accounts: [] }); await saveData('journal', []); await saveData('lifeLog', []);
       renderTasks(); renderGoals(); renderHabits(); renderFinance(); renderJournal(); renderCalendar(); renderDayDetail();
       updateStats(); alert('All data cleared.');
     }

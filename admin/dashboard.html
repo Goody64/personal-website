@@ -490,14 +490,23 @@
         <section id="finance" class="content-section hidden">
           <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
             <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Finance</h1>
-            <button id="addTransactionBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
-              <i class="fas fa-plus"></i>
-              <span>Add Transaction</span>
+          </div>
+          
+          <!-- Finance Sub-nav -->
+          <div class="flex gap-2 mb-6">
+            <button id="financeTabTransactions" class="finance-tab-btn px-4 py-2 rounded-xl font-medium transition-colors bg-blue-600 text-white" data-finance-tab="transactions">
+              <i class="fas fa-receipt mr-2"></i>Transactions
+            </button>
+            <button id="financeTabAccounts" class="finance-tab-btn px-4 py-2 rounded-xl font-medium transition-colors bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600" data-finance-tab="accounts">
+              <i class="fas fa-university mr-2"></i>Accounts
+            </button>
+            <button id="financeTabAnalytics" class="finance-tab-btn px-4 py-2 rounded-xl font-medium transition-colors bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600" data-finance-tab="analytics">
+              <i class="fas fa-chart-line mr-2"></i>Analytics
             </button>
           </div>
           
-          <!-- Finance Stats -->
-          <div class="grid sm:grid-cols-3 gap-4 mb-6">
+          <!-- Finance Stats (shown on Transactions tab) -->
+          <div id="financeStats" class="grid sm:grid-cols-3 gap-4 mb-6">
             <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
               <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-2">
                 <i class="fas fa-arrow-down text-green-500"></i>
@@ -524,15 +533,58 @@
             </div>
           </div>
           
-          <!-- Transactions -->
-          <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
-            <div class="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <h3 class="font-semibold text-slate-900 dark:text-white">Recent Transactions</h3>
+          <!-- Transactions Panel -->
+          <div id="financePanelTransactions" class="finance-panel">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="font-semibold text-slate-900 dark:text-white">Transactions</h3>
+              <button id="addTransactionBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
+                <i class="fas fa-plus"></i>
+                <span>Add Transaction</span>
+              </button>
             </div>
-            <div id="transactionsContainer" class="p-5">
-              <div class="text-center py-8 text-slate-400">
-                <i class="fas fa-receipt text-3xl mb-2 opacity-50"></i>
-                <p class="text-sm">No transactions recorded</p>
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <div id="transactionsContainer" class="p-5">
+                <div class="text-center py-8 text-slate-400">
+                  <i class="fas fa-receipt text-3xl mb-2 opacity-50"></i>
+                  <p class="text-sm">No transactions recorded</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Accounts Panel -->
+          <div id="financePanelAccounts" class="finance-panel hidden">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="font-semibold text-slate-900 dark:text-white">Accounts</h3>
+              <button id="addAccountBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
+                <i class="fas fa-plus"></i>
+                <span>Add Account</span>
+              </button>
+            </div>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Manual balance snapshots for net worth. Update balances when you check (e.g. monthly). Brokerage = enter current value; interest = log as income.</p>
+            <div id="accountsContainer" class="space-y-4">
+              <div class="bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 text-center text-slate-400">
+                <i class="fas fa-university text-4xl mb-3 opacity-50"></i>
+                <p>No accounts yet. Add checking, savings, brokerage, etc.</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Analytics Panel -->
+          <div id="financePanelAnalytics" class="finance-panel hidden">
+            <h3 class="font-semibold text-slate-900 dark:text-white mb-4">Money Over Time</h3>
+            <div id="analyticsCharts" class="space-y-6">
+              <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
+                <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-4">Income vs Expenses (by month)</h4>
+                <canvas id="chartIncomeExpenses" height="200"></canvas>
+              </div>
+              <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
+                <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-4">Spending by Category</h4>
+                <canvas id="chartCategories" height="200"></canvas>
+              </div>
+              <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
+                <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-4">Net Worth (from account snapshots)</h4>
+                <canvas id="chartNetWorth" height="200"></canvas>
               </div>
             </div>
           </div>
@@ -724,6 +776,7 @@
 
   <script src="js/admin-config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="js/dataService.js"></script>
   <script src="js/admin.js"></script>
 </body>

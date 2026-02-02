@@ -15,7 +15,7 @@ const DATA_KEYS = {
 };
 
 function getDefault(domain) {
-  if (domain === 'finance') return { transactions: [] };
+  if (domain === 'finance') return { transactions: [], accounts: [] };
   return [];
 }
 
