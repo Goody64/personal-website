@@ -1089,9 +1089,17 @@ if (document.getElementById('mainContent')) {
   window.showLibraryDetail = (type, groupKey, label) => {
     const t = ACTIVITY_TYPES[type];
     let filtered = [];
-    if (type === 'work' && groupKey.includes('|')) {
-      const [cat, sub] = groupKey.split('|');
-      filtered = lifeLog.filter(e => e.type === type && (e.data.category || 'Job') === cat && (e.data.subtype || 'Other') === sub);
+    if (type === 'work') {
+      if (groupKey.includes('|')) {
+        const [cat, sub] = groupKey.split('|');
+        filtered = lifeLog.filter(e => e.type === type && (e.data.category || 'Job') === cat && (e.data.subtype || 'Other') === sub);
+      } else {
+        if (groupKey === 'Uncategorized') {
+          filtered = lifeLog.filter(e => e.type === type && !(e.data.project || '').trim());
+        } else {
+          filtered = lifeLog.filter(e => e.type === type && (e.data.project || '').trim() === groupKey);
+        }
+      }
     } else if (type === 'tv') {
       filtered = lifeLog.filter(e => e.type === type && e.data.show === groupKey);
     } else if (type === 'game') {
@@ -1331,48 +1339,38 @@ if (document.getElementById('mainContent')) {
       });
       html += '</div>';
     } else if (type === 'work') {
-      // Group by category, then by subtype
-      const byCategory = { Job: [], School: [], Personal: [] };
+      // Group by project/course (e.g. "Project A", "Class A")
+      const byProject = {};
       entries.forEach(e => {
-        const cat = e.data.category || 'Job';
-        if (!byCategory[cat]) byCategory[cat] = [];
-        byCategory[cat].push(e);
+        const proj = (e.data.project || '').trim() || '__uncategorized__';
+        if (!byProject[proj]) byProject[proj] = { entries: [], totalMins: 0, lastWorked: e.date };
+        byProject[proj].entries.push(e);
+        byProject[proj].totalMins += e.data.duration || 0;
+        if (e.date > byProject[proj].lastWorked) byProject[proj].lastWorked = e.date;
       });
+      const sortedProjects = Object.entries(byProject).sort((a, b) => new Date(b[1].lastWorked) - new Date(a[1].lastWorked));
       
-      html = `<div class="space-y-6">`;
-      ['Job', 'School', 'Personal'].forEach(cat => {
-        const list = byCategory[cat] || [];
-        if (list.length === 0) return;
-        const bySubtype = {};
-        list.forEach(e => {
-          const sub = e.data.subtype || 'Other';
-          if (!bySubtype[sub]) bySubtype[sub] = [];
-          bySubtype[sub].push(e);
-        });
+      html = `<div class="space-y-4">`;
+      sortedProjects.forEach(([projKey, data]) => {
+        const label = projKey === '__uncategorized__' ? 'Uncategorized' : projKey;
+        const projEsc = (label || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const hours = Math.round(data.totalMins / 60 * 10) / 10;
+        const catBreakdown = {};
+        data.entries.forEach(e => { const c = e.data.category || 'Job'; catBreakdown[c] = (catBreakdown[c] || 0) + 1; });
+        const catStr = Object.entries(catBreakdown).map(([c, n]) => `${c}: ${n}`).join(', ');
         html += `
-          <div>
-            <h3 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">${cat}</h3>
-            <div class="space-y-3">
-              ${Object.entries(bySubtype).sort((a, b) => b[1].length - a[1].length).map(([sub, items]) => {
-                const subMins = items.reduce((s, e) => s + (e.data.duration || 0), 0);
-                const groupKey = `${cat}|${sub}`.replace(/'/g, "\\'");
-                const label = `${cat} · ${sub}`;
-                return `
-                <div onclick="showLibraryDetail('work', '${groupKey}', '${label}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
-                  <div class="flex items-start gap-4">
-                    <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
-                      <i class="fas ${t.icon}" style="color: ${t.color}"></i>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <h4 class="font-semibold text-slate-900 dark:text-white">${sub}</h4>
-                      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${items.length} session${items.length !== 1 ? 's' : ''}${subMins ? ` · ${Math.round(subMins / 60 * 10) / 10}h` : ''}</p>
-                      <p class="text-xs text-slate-400 mt-2">${items.slice(0, 2).map(e => e.data.title).join(', ')}${items.length > 2 ? '...' : ''}</p>
-                    </div>
-                    <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600 mt-2"></i>
-                  </div>
-                </div>
-              `;
-              }).join('')}
+          <div onclick="showLibraryDetail('work', '${projEsc}', '${projEsc}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
+            <div class="flex items-start gap-4">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
+                <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h4 class="font-semibold text-slate-900 dark:text-white">${label.replace(/</g, '&lt;')}</h4>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${data.entries.length} session${data.entries.length !== 1 ? 's' : ''}${hours ? ` · ${hours}h total` : ''}</p>
+                <p class="text-xs text-slate-400 mt-1">${catStr}</p>
+                <p class="text-xs text-slate-400 mt-1">Last worked: ${formatDateShort(data.lastWorked)}</p>
+              </div>
+              <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600 mt-2"></i>
             </div>
           </div>
         `;
