@@ -69,7 +69,7 @@ const ACTIVITY_TYPES = {
       { key: 'amount', label: 'Amount ($)', type: 'number', required: true },
       { key: 'store', label: 'Store', type: 'text' },
       { key: 'addToFinance', label: 'Also add to Finance', type: 'checkbox' },
-      { key: 'financeCategory', label: 'Finance category', type: 'select', options: ['Food', 'Shopping', 'Entertainment', 'Transport', 'Utilities', 'Other'] },
+      { key: 'financeCategory', label: 'Finance category', type: 'select', options: ['Food', 'Shopping', 'Entertainment', 'Transport', 'Housing', 'Utilities', 'Other'] },
       { key: 'notes', label: 'Notes', type: 'textarea' }
     ]},
   meal: { name: 'Meal', icon: 'fa-utensils', color: '#14b8a6', plural: 'meals',
@@ -1698,7 +1698,7 @@ if (document.getElementById('mainContent')) {
           <input type="number" id="txnAmount" required min="0" step="0.01" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
           <select id="txnCat" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            <option>Food</option><option>Transport</option><option>Entertainment</option><option>Shopping</option><option>Salary</option><option>Other</option>
+            <option>Food</option><option>Transport</option><option>Entertainment</option><option>Shopping</option><option>Housing</option><option>Utilities</option><option>Salary</option><option>Other</option>
           </select></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
           <input type="date" id="txnDate" value="${new Date().toISOString().split('T')[0]}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
