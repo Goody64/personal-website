@@ -38,6 +38,16 @@
     .sidebar-collapsed .sidebar-logo span { display: none; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     .animate-in { animation: fadeIn 0.3s ease; }
+    /* Finance tab buttons */
+    .finance-tab-btn { cursor: pointer; }
+    .finance-tab-btn:not(.bg-blue-600):hover { background: #e2e8f0 !important; }
+    .dark .finance-tab-btn:not(.bg-blue-600):hover { background: #475569 !important; }
+    .finance-tab-btn.bg-blue-600:hover { background: #2563eb !important; }
+    /* Drag handle always visible */
+    .drag-handle { opacity: 0.6; transition: opacity 0.15s; }
+    .drag-handle:hover { opacity: 1; }
+    .account-row:hover .drag-handle, .txn-row:hover .drag-handle { opacity: 1; }
+    .account-row, .txn-row { transition: border-color 0.15s; }
   </style>
 </head>
 
@@ -494,13 +504,13 @@
           
           <!-- Finance Sub-nav -->
           <div class="flex gap-2 mb-6">
-            <button id="financeTabTransactions" class="finance-tab-btn px-4 py-2 rounded-xl font-medium transition-colors bg-blue-600 text-white" data-finance-tab="transactions">
+            <button id="financeTabTransactions" class="finance-tab-btn px-4 py-2 rounded-xl font-medium transition-all bg-blue-600 text-white" data-finance-tab="transactions">
               <i class="fas fa-receipt mr-2"></i>Transactions
             </button>
-            <button id="financeTabAccounts" class="finance-tab-btn px-4 py-2 rounded-xl font-medium transition-colors bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600" data-finance-tab="accounts">
+            <button id="financeTabAccounts" class="finance-tab-btn px-4 py-2 rounded-xl font-medium transition-all bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" data-finance-tab="accounts">
               <i class="fas fa-university mr-2"></i>Accounts
             </button>
-            <button id="financeTabAnalytics" class="finance-tab-btn px-4 py-2 rounded-xl font-medium transition-colors bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600" data-finance-tab="analytics">
+            <button id="financeTabAnalytics" class="finance-tab-btn px-4 py-2 rounded-xl font-medium transition-all bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" data-finance-tab="analytics">
               <i class="fas fa-chart-line mr-2"></i>Analytics
             </button>
           </div>
@@ -561,7 +571,7 @@
                 <span>Add Account</span>
               </button>
             </div>
-            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Manual balance snapshots for net worth. Update balances when you check (e.g. monthly). Brokerage = enter current value; interest = log as income.</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Manual balance snapshots for net worth. Update balances when you check (e.g. monthly). Drag <i class="fas fa-grip-vertical text-xs"></i> to reorder.</p>
             <div id="accountsContainer" class="space-y-4">
               <div class="bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 text-center text-slate-400">
                 <i class="fas fa-university text-4xl mb-3 opacity-50"></i>
@@ -572,26 +582,42 @@
           
           <!-- Analytics Panel -->
           <div id="financePanelAnalytics" class="finance-panel hidden">
-            <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
-              <h3 class="font-semibold text-slate-900 dark:text-white">Money Over Time</h3>
-              <select id="analyticsDateRange" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-                <option value="month">This month</option>
-                <option value="ytd">YTD (Jan–today)</option>
-                <option value="year">Last 12 months</option>
-                <option value="all" selected>All time</option>
-              </select>
-            </div>
+            <h3 class="font-semibold text-slate-900 dark:text-white mb-4">Money Over Time</h3>
             <div id="analyticsCharts" class="space-y-6">
               <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
-                <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-4">Income vs Expenses (expenses stacked by category)</h4>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400">Income vs Expenses (stacked by category)</h4>
+                  <select id="rangeIncomeExpenses" class="chart-range-select px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 text-xs">
+                    <option value="month">This month</option>
+                    <option value="ytd">YTD</option>
+                    <option value="year">Last 12 mo</option>
+                    <option value="all" selected>All time</option>
+                  </select>
+                </div>
                 <canvas id="chartIncomeExpenses" height="200"></canvas>
               </div>
               <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
-                <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-4">Spending by Category</h4>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400">Spending by Category</h4>
+                  <select id="rangeCategories" class="chart-range-select px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 text-xs">
+                    <option value="month" selected>This month</option>
+                    <option value="ytd">YTD</option>
+                    <option value="year">Last 12 mo</option>
+                    <option value="all">All time</option>
+                  </select>
+                </div>
                 <canvas id="chartCategories" height="200"></canvas>
               </div>
               <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
-                <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-4">Net Worth (from account snapshots)</h4>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400">Net Worth (from account snapshots)</h4>
+                  <select id="rangeNetWorth" class="chart-range-select px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 text-xs">
+                    <option value="month">This month</option>
+                    <option value="ytd">YTD</option>
+                    <option value="year">Last 12 mo</option>
+                    <option value="all" selected>All time</option>
+                  </select>
+                </div>
                 <canvas id="chartNetWorth" height="200"></canvas>
               </div>
             </div>

@@ -1669,17 +1669,22 @@ if (document.getElementById('mainContent')) {
 
   const showFinanceTab = (tab) => {
     document.querySelectorAll('.finance-tab-btn').forEach(b => {
-      b.classList.toggle('bg-blue-600', b.dataset.financeTab === tab);
-      b.classList.toggle('text-white', b.dataset.financeTab === tab);
-      b.classList.toggle('bg-slate-100', b.dataset.financeTab !== tab);
-      b.classList.toggle('dark:bg-slate-700', b.dataset.financeTab !== tab);
-      b.classList.toggle('text-slate-600', b.dataset.financeTab !== tab);
-      b.classList.toggle('dark:text-slate-300', b.dataset.financeTab !== tab);
+      const isActive = b.dataset.financeTab === tab;
+      // Remove all state classes first
+      b.classList.remove('bg-blue-600', 'text-white', 'bg-slate-100', 'text-slate-600');
+      b.className = b.className.replace(/dark:bg-slate-700|dark:text-slate-300/g, '').replace(/\s+/g, ' ').trim();
+      // Add appropriate classes
+      if (isActive) {
+        b.classList.add('bg-blue-600', 'text-white');
+      } else {
+        b.classList.add('bg-slate-100', 'text-slate-600');
+        b.className += ' dark:bg-slate-700 dark:text-slate-300';
+      }
     });
-    document.getElementById('financeStats').classList.toggle('hidden', tab !== 'transactions');
-    document.getElementById('financePanelTransactions').classList.toggle('hidden', tab !== 'transactions');
-    document.getElementById('financePanelAccounts').classList.toggle('hidden', tab !== 'accounts');
-    document.getElementById('financePanelAnalytics').classList.toggle('hidden', tab !== 'analytics');
+    document.getElementById('financeStats')?.classList.toggle('hidden', tab !== 'transactions');
+    document.getElementById('financePanelTransactions')?.classList.toggle('hidden', tab !== 'transactions');
+    document.getElementById('financePanelAccounts')?.classList.toggle('hidden', tab !== 'accounts');
+    document.getElementById('financePanelAnalytics')?.classList.toggle('hidden', tab !== 'analytics');
     if (tab === 'accounts') renderAccounts();
     if (tab === 'analytics') renderAnalytics();
   };
@@ -2053,9 +2058,7 @@ if (document.getElementById('mainContent')) {
   let chartIncomeExpenses = null, chartCategories = null, chartNetWorth = null;
   const CAT_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#6366f1', '#14b8a6', '#64748b', '#ef4444', '#22c55e'];
 
-  const getAnalyticsDateRange = () => {
-    const sel = document.getElementById('analyticsDateRange');
-    const val = sel?.value || 'all';
+  const getDateRange = (val) => {
     const today = getLocalDateString();
     if (val === 'month') return { min: today.slice(0, 7) + '-01', max: today };
     if (val === 'ytd') return { min: today.slice(0, 4) + '-01-01', max: today };
@@ -2080,85 +2083,120 @@ if (document.getElementById('mainContent')) {
         if (h.date >= range.min && h.date <= range.max) allDates.add(h.date);
       });
     });
-    return [...allDates].sort().filter(d => d >= range.min && d <= range.max);
+    return [...allDates].sort();
   };
 
-  const renderAnalytics = () => {
-    const range = getAnalyticsDateRange();
+  const renderChartIncomeExpenses = () => {
+    if (typeof Chart === 'undefined') return;
+    const rangeVal = document.getElementById('rangeIncomeExpenses')?.value || 'all';
+    const range = getDateRange(rangeVal);
     const allTxns = finance.transactions || [];
     const txns = filterTxnsByRange(allTxns, range);
-    const accounts = finance.accounts || [];
     const isDark = document.documentElement.classList.contains('dark');
     const textColor = isDark ? '#94a3b8' : '#64748b';
     const gridColor = isDark ? 'rgba(148,163,184,0.1)' : 'rgba(100,116,139,0.1)';
 
-    // Income vs Expenses by month - stacked expenses by category
     const byMonth = {};
     txns.forEach(t => {
       const d = t.date || '';
       const m = d.slice(0, 7);
-      if (!byMonth[m]) byMonth[m] = { income: 0, byCat: {} };
-      if (t.type === 'income') byMonth[m].income += t.amount || 0;
-      else {
-        const c = t.category || 'Other';
-        byMonth[m].byCat[c] = (byMonth[m].byCat[c] || 0) + (t.amount || 0);
+      if (m) {
+        if (!byMonth[m]) byMonth[m] = { income: 0, byCat: {} };
+        if (t.type === 'income') byMonth[m].income += t.amount || 0;
+        else {
+          const c = t.category || 'Other';
+          byMonth[m].byCat[c] = (byMonth[m].byCat[c] || 0) + (t.amount || 0);
+        }
       }
     });
     const months = Object.keys(byMonth).sort();
     const allCats = [...new Set(txns.filter(t => t.type === 'expense').map(t => t.category || 'Other'))].sort();
-    const incomeData = months.length ? months.map(m => byMonth[m].income) : [0];
-    const monthLabels = months.length ? months.map(m => {
-      const [y, mo] = m.split('-');
-      return new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    }) : ['No data'];
+    
+    // Build labels and datasets
+    let monthLabels, datasets;
+    if (months.length === 0) {
+      monthLabels = ['No data'];
+      datasets = [{ label: 'Income', data: [0], backgroundColor: 'rgba(34,197,94,0.7)', stack: 'income' }];
+    } else {
+      monthLabels = months.map(m => {
+        const [y, mo] = m.split('-');
+        return new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      });
+      const incomeData = months.map(m => byMonth[m].income);
+      datasets = [{ label: 'Income', data: incomeData, backgroundColor: 'rgba(34,197,94,0.7)', borderColor: 'rgb(34,197,94)', borderWidth: 1, stack: 'income' }];
+      allCats.forEach((cat, i) => {
+        const data = months.map(m => byMonth[m].byCat[cat] || 0);
+        datasets.push({ label: cat, data, backgroundColor: CAT_COLORS[i % CAT_COLORS.length], stack: 'expense' });
+      });
+    }
 
-    const datasets = [{ label: 'Income', data: incomeData, backgroundColor: 'rgba(34,197,94,0.6)', borderColor: 'rgb(34,197,94)', stack: 'income' }];
-    allCats.forEach((cat, i) => {
-      const data = months.map(m => byMonth[m].byCat[cat] || 0);
-      datasets.push({ label: cat, data, backgroundColor: CAT_COLORS[i % CAT_COLORS.length], stack: 'expense' });
-    });
-
-    const ctx1 = document.getElementById('chartIncomeExpenses');
-    if (ctx1) {
+    const ctx = document.getElementById('chartIncomeExpenses');
+    if (ctx) {
       if (chartIncomeExpenses) chartIncomeExpenses.destroy();
-      chartIncomeExpenses = new Chart(ctx1, {
+      chartIncomeExpenses = new Chart(ctx, {
         type: 'bar',
         data: { labels: monthLabels, datasets },
         options: {
           responsive: true,
-          plugins: { legend: { labels: { color: textColor } } },
+          plugins: {
+            legend: { labels: { color: textColor } },
+            tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.raw)}` } }
+          },
           scales: {
             x: { grid: { color: gridColor }, ticks: { color: textColor }, stacked: true },
-            y: { grid: { color: gridColor }, ticks: { color: textColor }, stacked: true }
+            y: { grid: { color: gridColor }, ticks: { color: textColor, callback: v => '$' + v }, stacked: true }
           }
         }
       });
     }
+  };
 
-    // Spending by category (expenses only) - filtered by range
+  const renderChartCategories = () => {
+    if (typeof Chart === 'undefined') return;
+    const rangeVal = document.getElementById('rangeCategories')?.value || 'month';
+    const range = getDateRange(rangeVal);
+    const allTxns = finance.transactions || [];
+    const txns = filterTxnsByRange(allTxns, range);
+    const isDark = document.documentElement.classList.contains('dark');
+    const textColor = isDark ? '#94a3b8' : '#64748b';
+
     const byCat = {};
     txns.filter(t => t.type === 'expense').forEach(t => {
       const c = t.category || 'Other';
       byCat[c] = (byCat[c] || 0) + (t.amount || 0);
     });
     const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
-    const ctx2 = document.getElementById('chartCategories');
-    if (ctx2) {
+    const hasData = cats.length > 0;
+
+    const ctx = document.getElementById('chartCategories');
+    if (ctx) {
       if (chartCategories) chartCategories.destroy();
-      chartCategories = new Chart(ctx2, {
+      chartCategories = new Chart(ctx, {
         type: 'doughnut',
         data: {
-          labels: cats.map(([c]) => c),
-          datasets: [{ data: cats.map(([, v]) => v), backgroundColor: CAT_COLORS }]
+          labels: hasData ? cats.map(([c]) => c) : ['No expenses'],
+          datasets: [{ data: hasData ? cats.map(([, v]) => v) : [1], backgroundColor: hasData ? CAT_COLORS : ['#cbd5e1'] }]
         },
         options: {
           responsive: true,
-          plugins: { legend: { labels: { color: textColor } } }
+          plugins: {
+            legend: { labels: { color: textColor } },
+            tooltip: { callbacks: { label: (tooltipCtx) => hasData ? `${tooltipCtx.label}: ${formatCurrency(tooltipCtx.raw)}` : 'No data' } }
+          }
         }
       });
     }
+  };
 
-    // Net worth - filtered by range
+  const renderChartNetWorth = () => {
+    if (typeof Chart === 'undefined') return;
+    const rangeVal = document.getElementById('rangeNetWorth')?.value || 'all';
+    const range = getDateRange(rangeVal);
+    const accounts = finance.accounts || [];
+    const isDark = document.documentElement.classList.contains('dark');
+    const textColor = isDark ? '#94a3b8' : '#64748b';
+    const gridColor = isDark ? 'rgba(148,163,184,0.1)' : 'rgba(100,116,139,0.1)';
+
     const sortedDates = filterBalanceHistoryByRange(accounts, range);
     const netWorthByDate = {};
     sortedDates.forEach(d => {
@@ -2170,21 +2208,25 @@ if (document.getElementById('mainContent')) {
       });
       netWorthByDate[d] = total;
     });
-    const nwLabels = sortedDates.length ? sortedDates.map(d => formatDateShort(d)) : ['No data'];
-    const nwData = sortedDates.length ? sortedDates.map(d => netWorthByDate[d]) : [0];
+    const hasData = sortedDates.length > 0;
+    const nwLabels = hasData ? sortedDates.map(d => formatDateShort(d)) : ['No data'];
+    const nwData = hasData ? sortedDates.map(d => netWorthByDate[d]) : [0];
 
-    const ctx3 = document.getElementById('chartNetWorth');
-    if (ctx3) {
+    const ctx = document.getElementById('chartNetWorth');
+    if (ctx) {
       if (chartNetWorth) chartNetWorth.destroy();
-      chartNetWorth = new Chart(ctx3, {
+      chartNetWorth = new Chart(ctx, {
         type: 'line',
         data: {
           labels: nwLabels,
-          datasets: [{ label: 'Net Worth', data: nwData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 }]
+          datasets: [{ label: 'Net Worth', data: nwData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, pointRadius: hasData ? 4 : 0, pointBackgroundColor: '#3b82f6' }]
         },
         options: {
           responsive: true,
-          plugins: { legend: { labels: { color: textColor } } },
+          plugins: {
+            legend: { labels: { color: textColor } },
+            tooltip: { callbacks: { label: (tooltipCtx) => hasData ? `Net Worth: ${formatCurrency(tooltipCtx.raw)}` : 'No data' } }
+          },
           scales: {
             x: { grid: { color: gridColor }, ticks: { color: textColor } },
             y: { grid: { color: gridColor }, ticks: { color: textColor, callback: v => '$' + v } }
@@ -2194,7 +2236,15 @@ if (document.getElementById('mainContent')) {
     }
   };
 
-  document.getElementById('analyticsDateRange')?.addEventListener('change', () => renderAnalytics());
+  const renderAnalytics = () => {
+    renderChartIncomeExpenses();
+    renderChartCategories();
+    renderChartNetWorth();
+  };
+
+  document.getElementById('rangeIncomeExpenses')?.addEventListener('change', () => renderChartIncomeExpenses());
+  document.getElementById('rangeCategories')?.addEventListener('change', () => renderChartCategories());
+  document.getElementById('rangeNetWorth')?.addEventListener('change', () => renderChartNetWorth());
   
   // ========================================
   // Journal
