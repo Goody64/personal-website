@@ -2160,9 +2160,9 @@ if (document.getElementById('mainContent')) {
     const { isGroup, dragData, icon, title, subtitle, balance, extra, startCollapsed } = opts;
     const collapsed = isGroup && startCollapsed;
     const chevron = isGroup ? `<button type="button" onclick="var w=this.closest('.account-slot-wrapper'); var exp=w.querySelector('.account-slot-expand'); var inst=w.dataset.drag?w.dataset.drag.replace('inst:',''):''; exp.classList.toggle('hidden'); var c=exp.classList.contains('hidden'); if(inst)window._setCollapsedInst(inst,c); var i=this.querySelector('i'); i.classList.toggle('fa-chevron-down',!c); i.classList.toggle('fa-chevron-right',c);" class="p-2 -mr-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"><i class="fas fa-chevron-${collapsed?'right':'down'} text-sm"></i></button>` : '';
-    return `<div class="account-slot grid grid-cols-[auto_1fr_7rem_auto] items-center gap-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group mb-2" data-drag="${dragData}" draggable="true">
-      <span class="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical text-sm"></i></span>
-      <div class="flex items-center gap-4 min-w-0">
+    return `<div class="account-slot flex items-center gap-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group mb-2" data-drag="${dragData}" draggable="true">
+      <span class="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 drag-handle flex-shrink-0" title="Drag to reorder"><i class="fas fa-grip-vertical text-sm"></i></span>
+      <div class="flex items-center gap-4 flex-1 min-w-0">
         <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
           <i class="fas fa-${icon} text-blue-600 dark:text-blue-400"></i>
         </div>
@@ -2171,8 +2171,11 @@ if (document.getElementById('mainContent')) {
           <p class="text-xs text-slate-500">${subtitle}</p>
         </div>
       </div>
-      <p class="font-bold text-slate-900 dark:text-white text-right tabular-nums">${balance}</p>
-      <div class="flex items-center justify-end gap-1">${chevron}${extra || ''}</div>
+      <div class="account-balance-col flex items-center justify-end gap-2 flex-shrink-0">
+        <p class="font-bold text-slate-900 dark:text-white tabular-nums">${balance}</p>
+        ${chevron}
+        ${extra || ''}
+      </div>
     </div>`;
   };
 
@@ -2266,6 +2269,10 @@ if (document.getElementById('mainContent')) {
         if (group.length === 1) {
           const a = group[0];
           const bal = parseFloat(a.currentBalance) || 0;
+          const rawName = (a.name || 'Account').trim();
+          const instName = (instLabel === '__ungrouped__' ? '' : instLabel).trim();
+          const displayTitle = instName && !rawName.toLowerCase().startsWith(instName.toLowerCase())
+            ? `${instName} – ${rawName}` : rawName;
           const extra = `<button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
             <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
             <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>`;
@@ -2273,7 +2280,7 @@ if (document.getElementById('mainContent')) {
             isGroup: false,
             dragData: `acc:${a.id}`,
             icon: a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university',
-            title: (a.name || 'Account').replace(/</g, '&lt;'),
+            title: displayTitle.replace(/</g, '&lt;'),
             subtitle: (a.type || 'other').replace(/</g, '&lt;'),
             balance: formatCurrency(bal),
             extra
@@ -2335,8 +2342,8 @@ if (document.getElementById('mainContent')) {
         <p class="font-semibold text-slate-900 dark:text-white truncate">${(a.name || 'Account').replace(/</g, '&lt;')}</p>
         <p class="text-xs text-slate-500 capitalize">${a.type || 'other'}</p>
       </div>
-      <div class="flex items-center gap-2 flex-shrink-0 pl-2">
-        <p class="font-bold text-slate-900 dark:text-white min-w-[6rem] text-right tabular-nums">${formatCurrency(bal)}</p>
+      <div class="account-balance-col flex items-center justify-end gap-2 flex-shrink-0">
+        <p class="font-bold text-slate-900 dark:text-white tabular-nums">${formatCurrency(bal)}</p>
         <button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
         <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
         <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>
@@ -2539,6 +2546,7 @@ if (document.getElementById('mainContent')) {
           </select></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Institution (optional)</label>
           <input type="text" id="accountInstitution" placeholder="e.g. Fidelity, Wealthfront" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <p class="text-xs text-slate-500">For single-account institutions, you can name it just "Checking" — we'll display it as "Institution – Checking".</p>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Current balance</label>
           <input type="number" id="accountBalance" step="0.01" value="0" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add</button>

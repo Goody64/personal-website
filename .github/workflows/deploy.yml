@@ -35,6 +35,14 @@ jobs:
             fs.writeFileSync('admin/js/admin-config.js', out);
           "
 
+      - name: Cache-bust scripts for faster propagation
+        run: |
+          BUILD="${{ github.sha }}"
+          for f in admin/dashboard.html admin/index.html; do
+            sed -i "s|js/admin.js\"|js/admin.js?v=${BUILD}\"|g" "$f"
+            sed -i "s|js/dataService.js\"|js/dataService.js?v=${BUILD}\"|g" "$f"
+          done
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
