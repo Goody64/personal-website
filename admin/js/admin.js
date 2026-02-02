@@ -2160,9 +2160,9 @@ if (document.getElementById('mainContent')) {
     const { isGroup, dragData, icon, title, subtitle, balance, extra, startCollapsed } = opts;
     const collapsed = isGroup && startCollapsed;
     const chevron = isGroup ? `<button type="button" onclick="var w=this.closest('.account-slot-wrapper'); var exp=w.querySelector('.account-slot-expand'); var inst=w.dataset.drag?w.dataset.drag.replace('inst:',''):''; exp.classList.toggle('hidden'); var c=exp.classList.contains('hidden'); if(inst)window._setCollapsedInst(inst,c); var i=this.querySelector('i'); i.classList.toggle('fa-chevron-down',!c); i.classList.toggle('fa-chevron-right',c);" class="p-2 -mr-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"><i class="fas fa-chevron-${collapsed?'right':'down'} text-sm"></i></button>` : '';
-    return `<div class="account-slot flex items-center gap-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group mb-2" data-drag="${dragData}" draggable="true">
+    return `<div class="account-slot grid grid-cols-[auto_1fr_7rem_auto] items-center gap-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group mb-2" data-drag="${dragData}" draggable="true">
       <span class="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical text-sm"></i></span>
-      <div class="flex items-center gap-4 flex-1 min-w-0">
+      <div class="flex items-center gap-4 min-w-0">
         <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
           <i class="fas fa-${icon} text-blue-600 dark:text-blue-400"></i>
         </div>
@@ -2171,11 +2171,8 @@ if (document.getElementById('mainContent')) {
           <p class="text-xs text-slate-500">${subtitle}</p>
         </div>
       </div>
-      <div class="flex items-center gap-2 flex-shrink-0">
-        <p class="font-bold text-slate-900 dark:text-white min-w-[7rem] text-right tabular-nums">${balance}</p>
-        ${chevron}
-        ${extra || ''}
-      </div>
+      <p class="font-bold text-slate-900 dark:text-white text-right tabular-nums">${balance}</p>
+      <div class="flex items-center justify-end gap-1">${chevron}${extra || ''}</div>
     </div>`;
   };
 
@@ -2338,8 +2335,8 @@ if (document.getElementById('mainContent')) {
         <p class="font-semibold text-slate-900 dark:text-white truncate">${(a.name || 'Account').replace(/</g, '&lt;')}</p>
         <p class="text-xs text-slate-500 capitalize">${a.type || 'other'}</p>
       </div>
-      <div class="flex items-center gap-2 flex-shrink-0">
-        <p class="font-bold text-slate-900 dark:text-white min-w-[7rem] text-right tabular-nums">${formatCurrency(bal)}</p>
+      <div class="flex items-center gap-2 flex-shrink-0 pl-2">
+        <p class="font-bold text-slate-900 dark:text-white min-w-[6rem] text-right tabular-nums">${formatCurrency(bal)}</p>
         <button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
         <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
         <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>
