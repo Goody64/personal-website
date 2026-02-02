@@ -12,7 +12,15 @@ const STORAGE_KEYS = {
   lifeLog: 'lifeErp_lifeLog',
   theme: 'lifeErp_theme',
   notifications: 'lifeErp_notifications',
-  collapsedAccounts: 'lifeErp_collapsedAccounts'
+  collapsedAccounts: 'lifeErp_collapsedAccounts',
+  healthGoals: 'lifeErp_healthGoals'
+};
+
+// Default health goals
+const DEFAULT_HEALTH_GOALS = {
+  steps: 10000,
+  water: 8,
+  sleep: 8
 };
 
 // Activity Types Configuration
@@ -371,12 +379,26 @@ if (document.getElementById('mainContent')) {
   // Theme
   // ========================================
   const html = document.documentElement;
+  const updateThemeIcon = () => {
+    const icon = document.getElementById('themeIcon');
+    if (!icon) return;
+    const isDark = html.classList.contains('dark');
+    icon.classList.remove('fa-moon', 'fa-sun');
+    icon.classList.add(isDark ? 'fa-sun' : 'fa-moon');
+  };
   if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     html.classList.add('dark');
   }
+  updateThemeIcon();
   document.getElementById('themeToggle')?.addEventListener('click', () => {
+    const icon = document.getElementById('themeIcon');
+    if (icon) {
+      icon.classList.add('rotate-[360deg]');
+      setTimeout(() => icon.classList.remove('rotate-[360deg]'), 300);
+    }
     html.classList.toggle('dark');
     localStorage.theme = html.classList.contains('dark') ? 'dark' : 'light';
+    updateThemeIcon();
   });
 
   // ========================================
@@ -1807,51 +1829,62 @@ if (document.getElementById('mainContent')) {
     if (document.getElementById('accountsContainer')) renderAccounts();
   };
 
-  let txnPanelDragoverAttached = false;
   const attachTxnDragListeners = () => {
-    if (!txnPanelDragoverAttached) {
-      const panel = document.getElementById('financePanelTransactions');
-      if (panel) { panel.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }); txnPanelDragoverAttached = true; }
-    }
-    const rows = document.querySelectorAll('.txn-row');
-    rows.forEach(row => {
+    let draggedTxnId = null;
+    const clearTxnIndicators = () => {
+      document.querySelectorAll('.txn-row').forEach(r => r.classList.remove('border-t-2', 'border-b-2', 'border-blue-500'));
+    };
+    
+    document.querySelectorAll('.txn-row').forEach(row => {
       row.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', row.dataset.txnId);
+        draggedTxnId = row.dataset.txnId;
+        e.dataTransfer.setData('text/plain', draggedTxnId);
         e.dataTransfer.effectAllowed = 'move';
         row.classList.add('opacity-50', 'dragging');
       });
-      row.addEventListener('dragend', () => row.classList.remove('opacity-50', 'dragging'));
+      row.addEventListener('dragend', () => {
+        row.classList.remove('opacity-50', 'dragging');
+        draggedTxnId = null;
+        clearTxnIndicators();
+      });
       row.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
+        if (!draggedTxnId || row.dataset.txnId === draggedTxnId) return;
+        // Only allow reorder within same date group
+        const draggedRow = document.querySelector(`.txn-row[data-txn-id="${draggedTxnId}"]`);
+        if (!draggedRow || draggedRow.closest('.txn-date-group') !== row.closest('.txn-date-group')) return;
+        clearTxnIndicators();
         const rect = row.getBoundingClientRect();
         const mid = rect.top + rect.height / 2;
-        row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
-        row.classList.add(e.clientY < mid ? 'border-t-2 border-blue-500' : 'border-b-2 border-blue-500');
+        row.classList.add(e.clientY < mid ? 'border-t-2' : 'border-b-2', 'border-blue-500');
       });
       row.addEventListener('dragleave', (e) => {
         if (!row.contains(e.relatedTarget)) row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
       });
       row.addEventListener('drop', (e) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        e.currentTarget.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
-        const draggedId = e.dataTransfer.getData('text/plain');
-        const targetId = e.currentTarget.dataset.txnId;
+        clearTxnIndicators();
+        const draggedId = e.dataTransfer.getData('text/plain') || draggedTxnId;
+        const targetId = row.dataset.txnId;
         if (!draggedId || draggedId === targetId) return;
-        const group = e.currentTarget.closest('.txn-date-group');
+        
+        const group = row.closest('.txn-date-group');
         if (!group) return;
         const draggedRow = document.querySelector(`.txn-row[data-txn-id="${draggedId}"]`);
         if (!draggedRow || draggedRow.closest('.txn-date-group') !== group) return;
+        
         const dateStr = group.dataset.date;
-        const dayTxns = [...group.querySelectorAll('.txn-row')].map(r => r.dataset.txnId);
-        const fromIdx = dayTxns.indexOf(draggedId);
-        let toIdx = dayTxns.indexOf(targetId);
-        const rect = e.currentTarget.getBoundingClientRect();
+        const dayTxnIds = [...group.querySelectorAll('.txn-row')].map(r => r.dataset.txnId);
+        const fromIdx = dayTxnIds.indexOf(draggedId);
+        let toIdx = dayTxnIds.indexOf(targetId);
+        
+        const rect = row.getBoundingClientRect();
         const insertBefore = e.clientY < rect.top + rect.height / 2;
-        if (insertBefore && toIdx > fromIdx) toIdx--;
-        if (!insertBefore && toIdx < fromIdx) toIdx++;
+        if (!insertBefore) toIdx++;
+        if (toIdx > fromIdx) toIdx--;
         if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+        
         const dayList = finance.transactions.filter(t => (t.date || '') === dateStr);
         dayList.sort((a, b) => (a.sortOrder ?? a.createdAt ?? 0) - (b.sortOrder ?? b.createdAt ?? 0));
         const [moved] = dayList.splice(fromIdx, 1);
@@ -2091,114 +2124,29 @@ if (document.getElementById('mainContent')) {
   const attachAccountDragListeners = () => {
     const container = document.getElementById('accountsContainer');
     if (!container) return;
-    let placeholder = null;
-    let lastDropIndex = -1;
-    let currentDragData = null;
+    let draggedData = null;
 
     const getSlots = () => [...container.querySelectorAll('.account-slot-wrapper')];
-    const removePlaceholder = () => {
-      if (placeholder && placeholder.parentNode) placeholder.remove();
-      placeholder = null;
-      lastDropIndex = -1;
+    const clearDropIndicators = () => {
+      container.querySelectorAll('.account-slot-wrapper').forEach(w => {
+        w.classList.remove('border-t-4', 'border-b-4', 'border-blue-500');
+      });
     };
-    const showPlaceholder = (index) => {
-      const slots = getSlots();
-      if (index < 0 || index > slots.length) return;
-      if (!placeholder) {
-        placeholder = document.createElement('div');
-        placeholder.className = 'drop-placeholder';
-        placeholder.setAttribute('data-placeholder', '1');
-        placeholder.addEventListener('dragover', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          e.dataTransfer.dropEffect = 'move';
-        });
-        placeholder.addEventListener('drop', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          handleAccountDrop(e, lastDropIndex);
-        });
-      }
-      if (lastDropIndex !== index) {
-        lastDropIndex = index;
-        const target = slots[index];
-        if (target) container.insertBefore(placeholder, target);
-        else container.appendChild(placeholder);
-      }
-    };
-
-    const handleAccountDrop = (e, toIdx) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const dragData = e.dataTransfer?.getData?.('text/plain') || currentDragData;
-      if (!dragData) return;
-      removePlaceholder();
-      const slots = getSlots();
-      const draggedWrapper = slots.find(s => s.dataset.drag === dragData);
-      if (!draggedWrapper) return;
-      const fromIdx = slots.indexOf(draggedWrapper);
-      if (toIdx === fromIdx || toIdx === fromIdx + 1) return;
-
-      const sorted = sortAccounts(finance.accounts);
-      const slotOrder = slots.map(s => s.dataset.drag);
-      const movedIds = dragData.startsWith('inst:') ? finance.accounts.filter(a => ((a.institution || '').trim() || '__ungrouped__') === dragData.slice(5)).map(a => a.id) : [dragData.slice(4)];
-      const reordered = sorted.filter(a => !movedIds.includes(a.id));
-      const toInsert = sorted.filter(a => movedIds.includes(a.id));
-      let accountInsertPos = 0;
-      for (let i = 0; i < toIdx && i < slotOrder.length; i++) {
-        const d = slotOrder[i];
-        if (d === dragData) continue;
-        if (d.startsWith('inst:')) {
-          const instName = d.slice(5);
-          accountInsertPos += finance.accounts.filter(a => ((a.institution || '').trim() || '__ungrouped__') === instName).length;
-        } else {
-          accountInsertPos += 1;
-        }
-      }
-      reordered.splice(accountInsertPos, 0, ...toInsert);
-      reordered.forEach((a, i) => { a.sortOrder = i; });
-      finance.accounts = reordered;
-      saveData('finance', finance);
-      renderFinance();
-    };
-
-    container.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-    });
-    container.addEventListener('drop', (e) => {
-      if (!currentDragData) return;
-      const target = e.target;
-      const placeholderEl = container.querySelector('.drop-placeholder');
-      let toIdx;
-      if (placeholderEl && (target === placeholderEl || placeholderEl.contains(target))) {
-        toIdx = lastDropIndex;
-      } else {
-        const wrapper = target.closest('.account-slot-wrapper');
-        if (!wrapper) return;
-        const slots = getSlots();
-        const rect = wrapper.getBoundingClientRect();
-        const mid = rect.top + rect.height / 2;
-        const idx = slots.indexOf(wrapper);
-        toIdx = e.clientY < mid ? idx : idx + 1;
-      }
-      handleAccountDrop(e, toIdx);
-    });
 
     container.querySelectorAll('.account-slot').forEach(slot => {
       slot.addEventListener('dragstart', (e) => {
         const wrapper = slot.closest('.account-slot-wrapper');
         if (!wrapper) return;
-        currentDragData = wrapper.dataset.drag;
-        e.dataTransfer.setData('text/plain', currentDragData);
+        draggedData = wrapper.dataset.drag;
+        e.dataTransfer.setData('text/plain', draggedData);
         e.dataTransfer.effectAllowed = 'move';
         wrapper.classList.add('opacity-50', 'dragging');
       });
       slot.addEventListener('dragend', () => {
         const wrapper = slot.closest('.account-slot-wrapper');
         if (wrapper) wrapper.classList.remove('opacity-50', 'dragging');
-        currentDragData = null;
-        removePlaceholder();
+        draggedData = null;
+        clearDropIndicators();
       });
     });
 
@@ -2206,23 +2154,59 @@ if (document.getElementById('mainContent')) {
       wrapper.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        const dragData = e.dataTransfer.getData('text/plain') || currentDragData;
-        if (!dragData) return;
+        if (!draggedData || wrapper.dataset.drag === draggedData) return;
+        clearDropIndicators();
+        const rect = wrapper.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        wrapper.classList.add(e.clientY < mid ? 'border-t-4' : 'border-b-4', 'border-blue-500');
+      });
+      wrapper.addEventListener('dragleave', (e) => {
+        if (!wrapper.contains(e.relatedTarget)) {
+          wrapper.classList.remove('border-t-4', 'border-b-4', 'border-blue-500');
+        }
+      });
+      wrapper.addEventListener('drop', (e) => {
+        e.preventDefault();
+        clearDropIndicators();
+        const dragData = e.dataTransfer.getData('text/plain') || draggedData;
+        if (!dragData || wrapper.dataset.drag === dragData) return;
+
         const slots = getSlots();
         const draggedWrapper = slots.find(s => s.dataset.drag === dragData);
         if (!draggedWrapper) return;
+
         const rect = wrapper.getBoundingClientRect();
-        const mid = rect.top + rect.height / 2;
-        const idx = slots.indexOf(wrapper);
-        const insertIdx = e.clientY < mid ? idx : idx + 1;
-        if (draggedWrapper === wrapper) return;
+        const insertBefore = e.clientY < rect.top + rect.height / 2;
         const fromIdx = slots.indexOf(draggedWrapper);
-        if (insertIdx === fromIdx || insertIdx === fromIdx + 1) return;
-        showPlaceholder(insertIdx);
+        let toIdx = slots.indexOf(wrapper);
+        if (!insertBefore) toIdx++;
+        if (toIdx > fromIdx) toIdx--;
+        if (fromIdx === toIdx) return;
+
+        const sorted = sortAccounts(finance.accounts);
+        const slotOrder = slots.map(s => s.dataset.drag);
+        const movedIds = dragData.startsWith('inst:') 
+          ? finance.accounts.filter(a => ((a.institution || '').trim() || '__ungrouped__') === dragData.slice(5)).map(a => a.id) 
+          : [dragData.slice(4)];
+        const reordered = sorted.filter(a => !movedIds.includes(a.id));
+        const toInsert = sorted.filter(a => movedIds.includes(a.id));
+        
+        let accountInsertPos = 0;
+        for (let i = 0; i <= toIdx && i < slotOrder.length; i++) {
+          const d = slotOrder[i];
+          if (d === dragData) continue;
+          if (d.startsWith('inst:')) {
+            accountInsertPos += finance.accounts.filter(a => ((a.institution || '').trim() || '__ungrouped__') === d.slice(5)).length;
+          } else {
+            accountInsertPos++;
+          }
+        }
+        reordered.splice(accountInsertPos, 0, ...toInsert);
+        reordered.forEach((a, i) => { a.sortOrder = i; });
+        finance.accounts = reordered;
+        saveData('finance', finance);
+        renderFinance();
       });
-    });
-    container.addEventListener('dragleave', (e) => {
-      if (!container.contains(e.relatedTarget)) removePlaceholder();
     });
   };
 
@@ -2621,6 +2605,46 @@ if (document.getElementById('mainContent')) {
   
   // Health section button
   document.getElementById('addHealthBtn')?.addEventListener('click', () => openLogModal('health'));
+
+  // Health Goals Management
+  const getHealthGoals = () => {
+    try { 
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.healthGoals) || '{}');
+      return { ...DEFAULT_HEALTH_GOALS, ...stored };
+    } catch { return { ...DEFAULT_HEALTH_GOALS }; }
+  };
+  const saveHealthGoals = (goals) => {
+    localStorage.setItem(STORAGE_KEYS.healthGoals, JSON.stringify(goals));
+  };
+  const renderHealthGoals = () => {
+    const goals = getHealthGoals();
+    const stepsEl = document.getElementById('goalSteps');
+    const waterEl = document.getElementById('goalWater');
+    const sleepEl = document.getElementById('goalSleep');
+    if (stepsEl) stepsEl.textContent = `Goal: ${goals.steps.toLocaleString()}`;
+    if (waterEl) waterEl.textContent = `Goal: ${goals.water}`;
+    if (sleepEl) sleepEl.textContent = `Goal: ${goals.sleep}h`;
+  };
+  window.editHealthGoal = (type) => {
+    const goals = getHealthGoals();
+    const labels = { steps: 'Daily Steps Goal', water: 'Daily Water Goal (glasses)', sleep: 'Daily Sleep Goal (hours)' };
+    const current = goals[type] || DEFAULT_HEALTH_GOALS[type];
+    openModal(`Edit ${labels[type]}`, `
+      <form id="healthGoalForm" class="space-y-4">
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${labels[type]}</label>
+          <input type="number" id="healthGoalValue" required min="1" step="1" value="${current}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-save mr-2"></i>Save Goal</button>
+      </form>
+    `);
+    document.getElementById('healthGoalForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      goals[type] = parseInt(document.getElementById('healthGoalValue').value, 10) || DEFAULT_HEALTH_GOALS[type];
+      saveHealthGoals(goals);
+      renderHealthGoals();
+      closeModal();
+    });
+  };
+  renderHealthGoals();
   
   // Alias for backwards compatibility
   window.openLifeLogModal = openLogModal;
