@@ -47,9 +47,12 @@
     .drag-handle { opacity: 0.6; transition: opacity 0.15s; }
     .drag-handle:hover { opacity: 1; }
     .account-row:hover .drag-handle, .txn-row:hover .drag-handle { opacity: 1; }
-    .account-row, .txn-row { transition: border-color 0.15s, opacity 0.15s; cursor: default; }
-    .account-row[draggable="true"], .txn-row[draggable="true"] { cursor: grab; }
-    .account-row.dragging, .txn-row.dragging { cursor: grabbing; }
+    .account-row, .txn-row, .account-slot { transition: border-color 0.15s, opacity 0.15s; cursor: default; }
+    .account-row[draggable="true"], .txn-row[draggable="true"], .account-slot[draggable="true"] { cursor: grab; }
+    .account-row.dragging, .txn-row.dragging, .account-slot.dragging { cursor: grabbing; }
+    /* Insert placeholder - iPhone-style slot */
+    .drop-placeholder { min-height: 72px; border: 2px dashed #3b82f6; border-radius: 16px; background: rgba(59,130,246,0.08); margin: 4px 0; transition: opacity 0.15s; }
+    .txn-drop-placeholder { min-height: 48px; border: 2px dashed #3b82f6; border-radius: 8px; background: rgba(59,130,246,0.08); margin: 2px 0; }
   </style>
 </head>
 

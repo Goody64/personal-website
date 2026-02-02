@@ -1904,8 +1904,30 @@ if (document.getElementById('mainContent')) {
     btn.addEventListener('click', () => showFinanceTab(btn.dataset.financeTab));
   });
 
-  // Accounts
+  // Accounts - unified slot structure (single account or group header, same look)
   const sortAccounts = (arr) => [...arr].sort((a, b) => (a.sortOrder ?? a.createdAt ?? 0) - (b.sortOrder ?? b.createdAt ?? 0));
+  const accountSlotHtml = (opts) => {
+    const { isGroup, dragData, icon, title, subtitle, balance, extra } = opts;
+    const chevron = isGroup ? `<button type="button" onclick="var w=this.closest('.account-slot-wrapper'); w.querySelector('.account-slot-expand').classList.toggle('hidden'); this.querySelector('i').classList.toggle('fa-chevron-down'); this.querySelector('i').classList.toggle('fa-chevron-right');" class="p-2 -mr-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"><i class="fas fa-chevron-down text-sm"></i></button>` : '';
+    return `<div class="account-slot flex items-center gap-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group mb-2" data-drag="${dragData}" draggable="true">
+      <span class="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical text-sm"></i></span>
+      <div class="flex items-center gap-4 flex-1 min-w-0">
+        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-${icon} text-blue-600 dark:text-blue-400"></i>
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="font-semibold text-slate-900 dark:text-white truncate">${title}</p>
+          <p class="text-xs text-slate-500">${subtitle}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <p class="font-bold text-slate-900 dark:text-white">${balance}</p>
+        ${chevron}
+        ${extra || ''}
+      </div>
+    </div>`;
+  };
+
   const renderAccounts = () => {
     const container = document.getElementById('accountsContainer');
     if (!container) return;
@@ -1932,13 +1954,16 @@ if (document.getElementById('mainContent')) {
       const totalBal = group.reduce((s, a) => s + (parseFloat(a.currentBalance) || 0), 0);
       if (instLabel && group.length >= 2) {
         const groupId = 'inst-' + instLabel.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
-        html += `<div class="mb-4">
-          <button type="button" onclick="document.getElementById('${groupId}').classList.toggle('hidden'); this.querySelector('i').classList.toggle('fa-chevron-down'); this.querySelector('i').classList.toggle('fa-chevron-right');" class="flex items-center gap-2 w-full px-4 py-3 bg-slate-100 dark:bg-slate-700/50 rounded-xl text-left hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-            <i class="fas fa-chevron-down text-slate-500 text-xs transition-transform"></i>
-            <span class="font-medium text-slate-700 dark:text-slate-300">${instLabel.replace(/</g, '&lt;')}</span>
-            <span class="ml-auto font-bold text-slate-900 dark:text-white">${formatCurrency(totalBal)}</span>
-          </button>
-          <div id="${groupId}" class="mt-2 space-y-2 account-group">`;
+        html += `<div class="account-slot-wrapper mb-2" data-drag="inst:${instLabel.replace(/"/g, '&quot;')}">
+          ${accountSlotHtml({
+            isGroup: true,
+            dragData: `inst:${instLabel.replace(/"/g, '&quot;')}`,
+            icon: 'building-columns',
+            title: instLabel.replace(/</g, '&lt;'),
+            subtitle: `${group.length} accounts`,
+            balance: formatCurrency(totalBal)
+          })}
+          <div class="account-slot-expand mt-2 space-y-2" id="${groupId}">`;
         group.forEach(a => {
           html += renderAccountRow(a, parseFloat(a.currentBalance) || 0);
         });
@@ -1946,27 +1971,35 @@ if (document.getElementById('mainContent')) {
       } else {
         group.forEach(a => {
           const bal = parseFloat(a.currentBalance) || 0;
-          html += `<div class="account-group">${renderAccountRow(a, bal)}</div>`;
+          const extra = `<button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
+            <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
+            <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>`;
+          html += `<div class="account-slot-wrapper" data-drag="acc:${a.id}">${accountSlotHtml({
+            isGroup: false,
+            dragData: `acc:${a.id}`,
+            icon: a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university',
+            title: (a.name || 'Account').replace(/</g, '&lt;'),
+            subtitle: (a.type || 'other').replace(/</g, '&lt;'),
+            balance: formatCurrency(bal),
+            extra
+          })}</div>`;
         });
       }
     });
-    container.innerHTML = html || sorted.map(a => renderAccountRow(a, parseFloat(a.currentBalance) || 0)).join('');
+    container.innerHTML = html;
     attachAccountDragListeners();
   };
 
   const renderAccountRow = (a, bal) => {
-    return `<div class="account-row flex items-center gap-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group" data-account-id="${a.id}" draggable="true">
-      <span class="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical text-sm"></i></span>
-      <div class="flex items-center gap-4 flex-1">
-        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-${a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university'} text-blue-600 dark:text-blue-400"></i>
-        </div>
-        <div>
-          <p class="font-semibold text-slate-900 dark:text-white">${(a.name || 'Account').replace(/</g, '&lt;')}</p>
-          <p class="text-xs text-slate-500 capitalize">${a.type || 'other'}</p>
-        </div>
+    return `<div class="flex items-center gap-2 p-5 pl-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group account-subrow">
+      <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-${a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university'} text-blue-600 dark:text-blue-400"></i>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex-1 min-w-0">
+        <p class="font-semibold text-slate-900 dark:text-white truncate">${(a.name || 'Account').replace(/</g, '&lt;')}</p>
+        <p class="text-xs text-slate-500 capitalize">${a.type || 'other'}</p>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
         <p class="font-bold text-slate-900 dark:text-white">${formatCurrency(bal)}</p>
         <button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
         <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
@@ -1976,53 +2009,118 @@ if (document.getElementById('mainContent')) {
   };
 
   const attachAccountDragListeners = () => {
-    const rows = document.querySelectorAll('.account-row');
-    rows.forEach(row => {
-      row.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', row.dataset.accountId);
+    const container = document.getElementById('accountsContainer');
+    if (!container) return;
+    let placeholder = null;
+    let lastDropIndex = -1;
+    let currentDragData = null;
+
+    const getSlots = () => [...container.querySelectorAll('.account-slot-wrapper')];
+    const removePlaceholder = () => {
+      if (placeholder && placeholder.parentNode) placeholder.remove();
+      placeholder = null;
+      lastDropIndex = -1;
+    };
+    const showPlaceholder = (index) => {
+      const slots = getSlots();
+      if (index < 0 || index > slots.length) return;
+      if (!placeholder) {
+        placeholder = document.createElement('div');
+        placeholder.className = 'drop-placeholder';
+        placeholder.setAttribute('data-placeholder', '1');
+        placeholder.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        });
+        placeholder.addEventListener('drop', (e) => handleAccountDrop(e, lastDropIndex));
+      }
+      if (lastDropIndex !== index) {
+        lastDropIndex = index;
+        const target = slots[index];
+        if (target) container.insertBefore(placeholder, target);
+        else container.appendChild(placeholder);
+      }
+    };
+
+    const handleAccountDrop = (e, toIdx) => {
+      e.preventDefault();
+      const dragData = e.dataTransfer.getData('text/plain') || currentDragData;
+      if (!dragData) return;
+      removePlaceholder();
+      const slots = getSlots().filter(s => !s.classList.contains('drop-placeholder'));
+      const draggedWrapper = slots.find(s => s.dataset.drag === dragData);
+      if (!draggedWrapper) return;
+      const fromIdx = slots.indexOf(draggedWrapper);
+      if (toIdx === fromIdx || toIdx === fromIdx + 1) return;
+
+      const sorted = sortAccounts(finance.accounts);
+      const slotOrder = slots.map(s => s.dataset.drag);
+      const movedIds = dragData.startsWith('inst:') ? finance.accounts.filter(a => ((a.institution || '').trim() || '__ungrouped__') === dragData.slice(5)).map(a => a.id) : [dragData.slice(4)];
+      const reordered = sorted.filter(a => !movedIds.includes(a.id));
+      const toInsert = sorted.filter(a => movedIds.includes(a.id));
+      let accountInsertPos = 0;
+      for (let i = 0; i < toIdx && i < slotOrder.length; i++) {
+        const d = slotOrder[i];
+        if (d === dragData) continue;
+        if (d.startsWith('inst:')) {
+          const instName = d.slice(5);
+          accountInsertPos += finance.accounts.filter(a => ((a.institution || '').trim() || '__ungrouped__') === instName).length;
+        } else {
+          accountInsertPos += 1;
+        }
+      }
+      reordered.splice(accountInsertPos, 0, ...toInsert);
+      reordered.forEach((a, i) => { a.sortOrder = i; });
+      finance.accounts = reordered;
+      saveData('finance', finance);
+      renderFinance();
+    };
+
+    container.querySelectorAll('.account-slot').forEach(slot => {
+      slot.addEventListener('dragstart', (e) => {
+        const wrapper = slot.closest('.account-slot-wrapper');
+        if (!wrapper) return;
+        currentDragData = wrapper.dataset.drag;
+        e.dataTransfer.setData('text/plain', currentDragData);
         e.dataTransfer.effectAllowed = 'move';
-        row.classList.add('opacity-50', 'dragging');
+        wrapper.classList.add('opacity-50', 'dragging');
       });
-      row.addEventListener('dragend', () => row.classList.remove('opacity-50', 'dragging'));
-      row.addEventListener('dragover', (e) => {
+      slot.addEventListener('dragend', () => {
+        const wrapper = slot.closest('.account-slot-wrapper');
+        if (wrapper) wrapper.classList.remove('opacity-50', 'dragging');
+        currentDragData = null;
+        removePlaceholder();
+      });
+    });
+
+    container.querySelectorAll('.account-slot-wrapper').forEach(wrapper => {
+      wrapper.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        const rect = row.getBoundingClientRect();
+        const dragData = e.dataTransfer.getData('text/plain') || currentDragData;
+        if (!dragData) return;
+        const slots = getSlots();
+        const draggedWrapper = slots.find(s => s.dataset.drag === dragData);
+        if (!draggedWrapper) return;
+        const rect = wrapper.getBoundingClientRect();
         const mid = rect.top + rect.height / 2;
-        row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
-        row.classList.add(e.clientY < mid ? 'border-t-2 border-blue-500' : 'border-b-2 border-blue-500');
+        const idx = slots.indexOf(wrapper);
+        const insertIdx = e.clientY < mid ? idx : idx + 1;
+        if (draggedWrapper === wrapper) return;
+        const fromIdx = slots.indexOf(draggedWrapper);
+        if (insertIdx === fromIdx || insertIdx === fromIdx + 1) return;
+        showPlaceholder(insertIdx);
       });
-      row.addEventListener('dragleave', (e) => {
-        if (!row.contains(e.relatedTarget)) row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
-      });
-      row.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
-        const draggedId = e.dataTransfer.getData('text/plain');
-        const targetId = row.dataset.accountId;
-        if (!draggedId || draggedId === targetId) return;
-        const allRows = [...document.querySelectorAll('.account-row')];
-        const fromIdx = allRows.findIndex(r => r.dataset.accountId === draggedId);
-        let toIdx = allRows.findIndex(r => r.dataset.accountId === targetId);
-        const rect = row.getBoundingClientRect();
-        const insertBefore = e.clientY < rect.top + rect.height / 2;
-        if (insertBefore && toIdx > fromIdx) toIdx--;
-        if (!insertBefore && toIdx < fromIdx) toIdx++;
-        if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
-        const sorted = sortAccounts(finance.accounts);
-        const fromIdxA = sorted.findIndex(a => a.id === draggedId);
-        let toIdxA = sorted.findIndex(a => a.id === targetId);
-        if (insertBefore && toIdxA > fromIdxA) toIdxA--;
-        if (!insertBefore && toIdxA < fromIdxA) toIdxA++;
-        if (fromIdxA < 0 || toIdxA < 0 || fromIdxA === toIdxA) return;
-        const [moved] = sorted.splice(fromIdxA, 1);
-        sorted.splice(toIdxA, 0, moved);
-        sorted.forEach((a, i) => { a.sortOrder = i; });
-        finance.accounts = sorted;
-        saveData('finance', finance);
-        renderFinance();
-      });
+      wrapper.addEventListener('drop', (e) => handleAccountDrop(e, (() => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        const slots = getSlots().filter(s => !s.classList.contains('drop-placeholder'));
+        const idx = slots.indexOf(e.currentTarget);
+        return e.clientY < mid ? idx : idx + 1;
+      })()));
+    });
+    container.addEventListener('dragleave', (e) => {
+      if (!container.contains(e.relatedTarget)) removePlaceholder();
     });
   };
 
