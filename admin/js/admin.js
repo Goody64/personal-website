@@ -2179,6 +2179,57 @@ if (document.getElementById('mainContent')) {
     </div>`;
   };
 
+  // Explicit slot order: ["inst:Wealthfront", "acc:xyz", "inst:Fidelity", "acc:abc"] - allows mixing groups and individuals
+  const getAccountSlotOrder = () => {
+    const order = finance.accountSlotOrder;
+    if (!Array.isArray(order) || order.length === 0) return null;
+    const accountIds = new Set(finance.accounts.map(a => a.id));
+    const seenIds = new Set();
+    const valid = [];
+    for (const sd of order) {
+      if (sd.startsWith('inst:')) {
+        const inst = sd.slice(5);
+        const group = finance.accounts.filter(a => ((a.institution || '').trim() || '__ungrouped__') === inst);
+        if (group.length === 0) return null; // stale institution
+        group.forEach(a => seenIds.add(a.id));
+        valid.push(sd);
+      } else {
+        const id = sd.slice(4);
+        if (!accountIds.has(id)) return null; // stale account
+        seenIds.add(id);
+        valid.push(sd);
+      }
+    }
+    if (seenIds.size !== finance.accounts.length) return null; // missing or extra accounts
+    return valid;
+  };
+  const buildSlotOrderFromAccounts = () => {
+    const sorted = sortAccounts(finance.accounts);
+    const seen = new Set();
+    const order = [];
+    sorted.forEach(a => {
+      const inst = (a.institution || '').trim() || '__ungrouped__';
+      if (inst !== '__ungrouped__') {
+        if (!seen.has('inst:' + inst)) {
+          seen.add('inst:' + inst);
+          order.push('inst:' + inst);
+        }
+      } else {
+        order.push('acc:' + a.id);
+      }
+    });
+    return order;
+  };
+  const ensureSlotOrder = () => {
+    let order = getAccountSlotOrder();
+    if (!order) {
+      order = buildSlotOrderFromAccounts();
+      finance.accountSlotOrder = order;
+      saveData('finance', finance);
+    }
+    return order;
+  };
+
   const renderAccounts = () => {
     const container = document.getElementById('accountsContainer');
     if (!container) return;
@@ -2190,6 +2241,7 @@ if (document.getElementById('mainContent')) {
       </div>`;
       return;
     }
+    const slotOrder = ensureSlotOrder();
     const sorted = sortAccounts(accounts);
     const byInstitution = {};
     sorted.forEach(a => {
@@ -2197,13 +2249,12 @@ if (document.getElementById('mainContent')) {
       if (!byInstitution[inst]) byInstitution[inst] = [];
       byInstitution[inst].push(a);
     });
-    const instOrder = [...new Set(sorted.map(a => (a.institution || '').trim() || '__ungrouped__'))];
     let html = '';
-    instOrder.forEach(instKey => {
-      const group = byInstitution[instKey] || [];
-      const instLabel = instKey === '__ungrouped__' ? null : instKey;
-      const totalBal = group.reduce((s, a) => s + (parseFloat(a.currentBalance) || 0), 0);
-      if (instLabel && group.length >= 2) {
+    slotOrder.forEach(slotData => {
+      if (slotData.startsWith('inst:')) {
+        const instLabel = slotData.slice(5);
+        const group = byInstitution[instLabel] || [];
+        const totalBal = group.reduce((s, a) => s + (parseFloat(a.currentBalance) || 0), 0);
         const groupId = 'inst-' + instLabel.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
         const collapsed = getCollapsedInstitutions().has(instLabel);
         html += `<div class="account-slot-wrapper mb-2" data-drag="inst:${instLabel.replace(/"/g, '&quot;')}">
@@ -2222,7 +2273,9 @@ if (document.getElementById('mainContent')) {
         });
         html += '</div></div>';
       } else {
-        group.forEach(a => {
+        const accId = slotData.slice(4);
+        const a = accounts.find(x => x.id === accId);
+        if (a) {
           const bal = parseFloat(a.currentBalance) || 0;
           const extra = `<button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
             <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
@@ -2236,7 +2289,7 @@ if (document.getElementById('mainContent')) {
             balance: formatCurrency(bal),
             extra
           })}</div>`;
-        });
+        }
       }
     });
     container.innerHTML = html;
@@ -2354,14 +2407,15 @@ if (document.getElementById('mainContent')) {
         if (toIdx > fromIdx) toIdx--;
         if (fromIdx === toIdx) return;
 
-        // Build new order: collect slot data in visual order, then remap to account IDs
+        // Build new slot order
         const slotDataOrder = slots.map(s => s.dataset.drag);
-        // Remove dragged item
         slotDataOrder.splice(fromIdx, 1);
-        // Insert at new position
         slotDataOrder.splice(toIdx, 0, dragData);
         
-        // Convert slot order to account ID order
+        // Save explicit slot order so render uses it (allows groups between individuals)
+        finance.accountSlotOrder = slotDataOrder;
+        
+        // Convert slot order to account order for sortOrder
         const newAccountOrder = [];
         slotDataOrder.forEach(sd => {
           getAccountIdsForSlot(sd).forEach(id => {
@@ -2369,8 +2423,6 @@ if (document.getElementById('mainContent')) {
             if (acc && !newAccountOrder.includes(acc)) newAccountOrder.push(acc);
           });
         });
-        
-        // Assign new sortOrder
         newAccountOrder.forEach((a, i) => { a.sortOrder = i; });
         finance.accounts = newAccountOrder;
         saveData('finance', finance);
@@ -2402,9 +2454,13 @@ if (document.getElementById('mainContent')) {
     `);
     document.getElementById('accountEditForm').addEventListener('submit', (e) => {
       e.preventDefault();
+      const newInst = (document.getElementById('accountEditInstitution')?.value || '').trim() || null;
+      if (((a.institution || '').trim() || null) !== (newInst || null)) {
+        delete finance.accountSlotOrder; // rebuild when institution changes
+      }
       a.name = document.getElementById('accountEditName').value.trim();
       a.type = document.getElementById('accountEditType').value;
-      a.institution = (document.getElementById('accountEditInstitution')?.value || '').trim() || null;
+      a.institution = newInst;
       saveData('finance', finance);
       renderFinance();
       closeModal();
