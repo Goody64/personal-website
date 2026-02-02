@@ -10,7 +10,9 @@ const STORAGE_KEYS = {
   finance: 'lifeErp_finance',
   journal: 'lifeErp_journal',
   lifeLog: 'lifeErp_lifeLog',
-  theme: 'lifeErp_theme'
+  theme: 'lifeErp_theme',
+  notifications: 'lifeErp_notifications',
+  collapsedAccounts: 'lifeErp_collapsedAccounts'
 };
 
 // Activity Types Configuration
@@ -376,7 +378,68 @@ if (document.getElementById('mainContent')) {
     html.classList.toggle('dark');
     localStorage.theme = html.classList.contains('dark') ? 'dark' : 'light';
   });
-  
+
+  // ========================================
+  // Notifications
+  // ========================================
+  const getNotifications = () => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.notifications) || '[]'); } catch { return []; }
+  };
+  const saveNotifications = (list) => {
+    localStorage.setItem(STORAGE_KEYS.notifications, JSON.stringify(list));
+  };
+  const addNotification = (title, message, type = 'info') => {
+    const list = getNotifications();
+    list.unshift({ id: generateId(), title, message, type, read: false, createdAt: Date.now() });
+    saveNotifications(list);
+    updateNotifUI();
+  };
+  const markAllRead = () => {
+    const list = getNotifications().map(n => ({ ...n, read: true }));
+    saveNotifications(list);
+    updateNotifUI();
+  };
+  window.addNotification = addNotification;
+  const updateNotifUI = () => {
+    const list = getNotifications();
+    const unread = list.filter(n => !n.read).length;
+    const dot = document.getElementById('notifDot');
+    const listEl = document.getElementById('notifList');
+    const emptyEl = document.getElementById('notifEmpty');
+    if (dot) dot.classList.toggle('hidden', unread === 0);
+    if (listEl && emptyEl) {
+      const items = list.filter(n => n).map(n => `
+        <div class="p-3 rounded-xl ${n.read ? 'bg-transparent' : 'bg-blue-50 dark:bg-blue-900/20'} border border-slate-200 dark:border-slate-700 mb-2">
+          <p class="font-medium text-slate-900 dark:text-white text-sm">${(n.title || '').replace(/</g, '&lt;')}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${(n.message || '').replace(/</g, '&lt;')}</p>
+          <p class="text-xs text-slate-400 mt-1">${formatDate(new Date(n.createdAt).toISOString().slice(0, 10))}</p>
+        </div>
+      `).join('');
+      listEl.innerHTML = items.length ? items : '';
+      if (!items.length) listEl.appendChild(emptyEl);
+      emptyEl.classList.toggle('hidden', items.length > 0);
+    }
+  };
+  document.getElementById('notifBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const panel = document.getElementById('notifPanel');
+    if (panel) panel.classList.toggle('hidden');
+  });
+  document.getElementById('notifPanelClose')?.addEventListener('click', () => {
+    document.getElementById('notifPanel')?.classList.add('hidden');
+  });
+  document.getElementById('notifMarkAllRead')?.addEventListener('click', () => {
+    markAllRead();
+  });
+  document.addEventListener('click', (e) => {
+    const panel = document.getElementById('notifPanel');
+    const btn = document.getElementById('notifBtn');
+    if (panel && !panel.classList.contains('hidden') && !panel.contains(e.target) && !btn?.contains(e.target)) {
+      panel.classList.add('hidden');
+    }
+  });
+  updateNotifUI();
+
   // ========================================
   // Navigation
   // ========================================
@@ -1744,7 +1807,12 @@ if (document.getElementById('mainContent')) {
     if (document.getElementById('accountsContainer')) renderAccounts();
   };
 
+  let txnPanelDragoverAttached = false;
   const attachTxnDragListeners = () => {
+    if (!txnPanelDragoverAttached) {
+      const panel = document.getElementById('financePanelTransactions');
+      if (panel) { panel.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }); txnPanelDragoverAttached = true; }
+    }
     const rows = document.querySelectorAll('.txn-row');
     rows.forEach(row => {
       row.addEventListener('dragstart', (e) => {
@@ -1906,9 +1974,19 @@ if (document.getElementById('mainContent')) {
 
   // Accounts - unified slot structure (single account or group header, same look)
   const sortAccounts = (arr) => [...arr].sort((a, b) => (a.sortOrder ?? a.createdAt ?? 0) - (b.sortOrder ?? b.createdAt ?? 0));
+  const getCollapsedInstitutions = () => {
+    try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.collapsedAccounts) || '[]')); } catch { return new Set(); }
+  };
+  const setCollapsedInstitution = (inst, collapsed) => {
+    const s = getCollapsedInstitutions();
+    if (collapsed) s.add(inst); else s.delete(inst);
+    localStorage.setItem(STORAGE_KEYS.collapsedAccounts, JSON.stringify([...s]));
+  };
+  window._setCollapsedInst = setCollapsedInstitution;
   const accountSlotHtml = (opts) => {
-    const { isGroup, dragData, icon, title, subtitle, balance, extra } = opts;
-    const chevron = isGroup ? `<button type="button" onclick="var w=this.closest('.account-slot-wrapper'); w.querySelector('.account-slot-expand').classList.toggle('hidden'); this.querySelector('i').classList.toggle('fa-chevron-down'); this.querySelector('i').classList.toggle('fa-chevron-right');" class="p-2 -mr-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"><i class="fas fa-chevron-down text-sm"></i></button>` : '';
+    const { isGroup, dragData, icon, title, subtitle, balance, extra, startCollapsed } = opts;
+    const collapsed = isGroup && startCollapsed;
+    const chevron = isGroup ? `<button type="button" onclick="var w=this.closest('.account-slot-wrapper'); var exp=w.querySelector('.account-slot-expand'); var inst=w.dataset.drag?w.dataset.drag.replace('inst:',''):''; exp.classList.toggle('hidden'); var c=exp.classList.contains('hidden'); if(inst)window._setCollapsedInst(inst,c); var i=this.querySelector('i'); i.classList.toggle('fa-chevron-down',!c); i.classList.toggle('fa-chevron-right',c);" class="p-2 -mr-2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"><i class="fas fa-chevron-${collapsed?'right':'down'} text-sm"></i></button>` : '';
     return `<div class="account-slot flex items-center gap-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group mb-2" data-drag="${dragData}" draggable="true">
       <span class="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical text-sm"></i></span>
       <div class="flex items-center gap-4 flex-1 min-w-0">
@@ -1954,6 +2032,7 @@ if (document.getElementById('mainContent')) {
       const totalBal = group.reduce((s, a) => s + (parseFloat(a.currentBalance) || 0), 0);
       if (instLabel && group.length >= 2) {
         const groupId = 'inst-' + instLabel.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
+        const collapsed = getCollapsedInstitutions().has(instLabel);
         html += `<div class="account-slot-wrapper mb-2" data-drag="inst:${instLabel.replace(/"/g, '&quot;')}">
           ${accountSlotHtml({
             isGroup: true,
@@ -1961,9 +2040,10 @@ if (document.getElementById('mainContent')) {
             icon: 'building-columns',
             title: instLabel.replace(/</g, '&lt;'),
             subtitle: `${group.length} accounts`,
-            balance: formatCurrency(totalBal)
+            balance: formatCurrency(totalBal),
+            startCollapsed: collapsed
           })}
-          <div class="account-slot-expand mt-2 space-y-2" id="${groupId}">`;
+          <div class="account-slot-expand mt-2 space-y-2 ${collapsed ? 'hidden' : ''}" id="${groupId}">`;
         group.forEach(a => {
           html += renderAccountRow(a, parseFloat(a.currentBalance) || 0);
         });
@@ -2030,9 +2110,14 @@ if (document.getElementById('mainContent')) {
         placeholder.setAttribute('data-placeholder', '1');
         placeholder.addEventListener('dragover', (e) => {
           e.preventDefault();
+          e.stopPropagation();
           e.dataTransfer.dropEffect = 'move';
         });
-        placeholder.addEventListener('drop', (e) => handleAccountDrop(e, lastDropIndex));
+        placeholder.addEventListener('drop', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleAccountDrop(e, lastDropIndex);
+        });
       }
       if (lastDropIndex !== index) {
         lastDropIndex = index;
@@ -2044,10 +2129,11 @@ if (document.getElementById('mainContent')) {
 
     const handleAccountDrop = (e, toIdx) => {
       e.preventDefault();
-      const dragData = e.dataTransfer.getData('text/plain') || currentDragData;
+      e.stopPropagation();
+      const dragData = e.dataTransfer?.getData?.('text/plain') || currentDragData;
       if (!dragData) return;
       removePlaceholder();
-      const slots = getSlots().filter(s => !s.classList.contains('drop-placeholder'));
+      const slots = getSlots();
       const draggedWrapper = slots.find(s => s.dataset.drag === dragData);
       if (!draggedWrapper) return;
       const fromIdx = slots.indexOf(draggedWrapper);
@@ -2075,6 +2161,29 @@ if (document.getElementById('mainContent')) {
       saveData('finance', finance);
       renderFinance();
     };
+
+    container.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    container.addEventListener('drop', (e) => {
+      if (!currentDragData) return;
+      const target = e.target;
+      const placeholderEl = container.querySelector('.drop-placeholder');
+      let toIdx;
+      if (placeholderEl && (target === placeholderEl || placeholderEl.contains(target))) {
+        toIdx = lastDropIndex;
+      } else {
+        const wrapper = target.closest('.account-slot-wrapper');
+        if (!wrapper) return;
+        const slots = getSlots();
+        const rect = wrapper.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        const idx = slots.indexOf(wrapper);
+        toIdx = e.clientY < mid ? idx : idx + 1;
+      }
+      handleAccountDrop(e, toIdx);
+    });
 
     container.querySelectorAll('.account-slot').forEach(slot => {
       slot.addEventListener('dragstart', (e) => {
@@ -2111,13 +2220,6 @@ if (document.getElementById('mainContent')) {
         if (insertIdx === fromIdx || insertIdx === fromIdx + 1) return;
         showPlaceholder(insertIdx);
       });
-      wrapper.addEventListener('drop', (e) => handleAccountDrop(e, (() => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const mid = rect.top + rect.height / 2;
-        const slots = getSlots().filter(s => !s.classList.contains('drop-placeholder'));
-        const idx = slots.indexOf(e.currentTarget);
-        return e.clientY < mid ? idx : idx + 1;
-      })()));
     });
     container.addEventListener('dragleave', (e) => {
       if (!container.contains(e.relatedTarget)) removePlaceholder();
