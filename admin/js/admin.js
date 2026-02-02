@@ -1749,11 +1749,13 @@ if (document.getElementById('mainContent')) {
     rows.forEach(row => {
       row.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('text/plain', row.dataset.txnId);
-        row.classList.add('opacity-50');
+        e.dataTransfer.effectAllowed = 'move';
+        row.classList.add('opacity-50', 'dragging');
       });
-      row.addEventListener('dragend', () => row.classList.remove('opacity-50'));
+      row.addEventListener('dragend', () => row.classList.remove('opacity-50', 'dragging'));
       row.addEventListener('dragover', (e) => {
         e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
         const rect = row.getBoundingClientRect();
         const mid = rect.top + rect.height / 2;
         row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
@@ -1764,7 +1766,8 @@ if (document.getElementById('mainContent')) {
       });
       row.addEventListener('drop', (e) => {
         e.preventDefault();
-        e.currentTarget.classList.remove('border-t-2', 'border-b-2');
+        e.dataTransfer.dropEffect = 'move';
+        e.currentTarget.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
         const draggedId = e.dataTransfer.getData('text/plain');
         const targetId = e.currentTarget.dataset.txnId;
         if (!draggedId || draggedId === targetId) return;
@@ -1915,27 +1918,61 @@ if (document.getElementById('mainContent')) {
       return;
     }
     const sorted = sortAccounts(accounts);
-    container.innerHTML = sorted.map((a, idx) => {
-      const bal = parseFloat(a.currentBalance) || 0;
-      return `<div class="account-row flex items-center gap-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group" data-account-id="${a.id}" draggable="true">
-        <span class="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical text-sm"></i></span>
-        <div class="flex items-center gap-4 flex-1">
-          <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
-            <i class="fas fa-${a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university'} text-blue-600 dark:text-blue-400"></i>
-          </div>
-          <div>
-            <p class="font-semibold text-slate-900 dark:text-white">${(a.name || 'Account').replace(/</g, '&lt;')}</p>
-            <p class="text-xs text-slate-500 capitalize">${a.type || 'other'}</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-3">
-          <p class="font-bold text-slate-900 dark:text-white">${formatCurrency(bal)}</p>
-          <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
-          <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>
-        </div>
-      </div>`;
-    }).join('');
+    const byInstitution = {};
+    sorted.forEach(a => {
+      const inst = (a.institution || '').trim() || '__ungrouped__';
+      if (!byInstitution[inst]) byInstitution[inst] = [];
+      byInstitution[inst].push(a);
+    });
+    const instOrder = [...new Set(sorted.map(a => (a.institution || '').trim() || '__ungrouped__'))];
+    let html = '';
+    instOrder.forEach(instKey => {
+      const group = byInstitution[instKey] || [];
+      const instLabel = instKey === '__ungrouped__' ? null : instKey;
+      const totalBal = group.reduce((s, a) => s + (parseFloat(a.currentBalance) || 0), 0);
+      if (instLabel && group.length >= 2) {
+        const groupId = 'inst-' + instLabel.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
+        html += `<div class="mb-4">
+          <button type="button" onclick="document.getElementById('${groupId}').classList.toggle('hidden'); this.querySelector('i').classList.toggle('fa-chevron-down'); this.querySelector('i').classList.toggle('fa-chevron-right');" class="flex items-center gap-2 w-full px-4 py-3 bg-slate-100 dark:bg-slate-700/50 rounded-xl text-left hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+            <i class="fas fa-chevron-down text-slate-500 text-xs transition-transform"></i>
+            <span class="font-medium text-slate-700 dark:text-slate-300">${instLabel.replace(/</g, '&lt;')}</span>
+            <span class="ml-auto font-bold text-slate-900 dark:text-white">${formatCurrency(totalBal)}</span>
+          </button>
+          <div id="${groupId}" class="mt-2 space-y-2 account-group">`;
+        group.forEach(a => {
+          html += renderAccountRow(a, parseFloat(a.currentBalance) || 0);
+        });
+        html += '</div></div>';
+      } else {
+        group.forEach(a => {
+          const bal = parseFloat(a.currentBalance) || 0;
+          html += `<div class="account-group">${renderAccountRow(a, bal)}</div>`;
+        });
+      }
+    });
+    container.innerHTML = html || sorted.map(a => renderAccountRow(a, parseFloat(a.currentBalance) || 0)).join('');
     attachAccountDragListeners();
+  };
+
+  const renderAccountRow = (a, bal) => {
+    return `<div class="account-row flex items-center gap-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 group" data-account-id="${a.id}" draggable="true">
+      <span class="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical text-sm"></i></span>
+      <div class="flex items-center gap-4 flex-1">
+        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-${a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university'} text-blue-600 dark:text-blue-400"></i>
+        </div>
+        <div>
+          <p class="font-semibold text-slate-900 dark:text-white">${(a.name || 'Account').replace(/</g, '&lt;')}</p>
+          <p class="text-xs text-slate-500 capitalize">${a.type || 'other'}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <p class="font-bold text-slate-900 dark:text-white">${formatCurrency(bal)}</p>
+        <button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
+        <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
+        <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>
+      </div>
+    </div>`;
   };
 
   const attachAccountDragListeners = () => {
@@ -1943,11 +1980,13 @@ if (document.getElementById('mainContent')) {
     rows.forEach(row => {
       row.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('text/plain', row.dataset.accountId);
-        row.classList.add('opacity-50');
+        e.dataTransfer.effectAllowed = 'move';
+        row.classList.add('opacity-50', 'dragging');
       });
-      row.addEventListener('dragend', () => row.classList.remove('opacity-50'));
+      row.addEventListener('dragend', () => row.classList.remove('opacity-50', 'dragging'));
       row.addEventListener('dragover', (e) => {
         e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
         const rect = row.getBoundingClientRect();
         const mid = rect.top + rect.height / 2;
         row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
@@ -1958,6 +1997,7 @@ if (document.getElementById('mainContent')) {
       });
       row.addEventListener('drop', (e) => {
         e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
         row.classList.remove('border-t-2', 'border-b-2', 'border-blue-500');
         const draggedId = e.dataTransfer.getData('text/plain');
         const targetId = row.dataset.accountId;
@@ -1983,6 +2023,38 @@ if (document.getElementById('mainContent')) {
         saveData('finance', finance);
         renderFinance();
       });
+    });
+  };
+
+  window.editAccountModal = (id) => {
+    const a = finance.accounts.find(x => x.id === id);
+    if (!a) return;
+    openModal('Edit Account', `
+      <form id="accountEditForm" class="space-y-4">
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
+          <input type="text" id="accountEditName" required value="${(a.name || '').replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
+          <select id="accountEditType" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <option value="checking" ${a.type === 'checking' ? 'selected' : ''}>Checking</option>
+            <option value="savings" ${a.type === 'savings' ? 'selected' : ''}>Savings</option>
+            <option value="brokerage" ${a.type === 'brokerage' ? 'selected' : ''}>Brokerage</option>
+            <option value="cash" ${a.type === 'cash' ? 'selected' : ''}>Cash</option>
+            <option value="other" ${a.type === 'other' ? 'selected' : ''}>Other</option>
+          </select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Institution (optional)</label>
+          <input type="text" id="accountEditInstitution" placeholder="e.g. Fidelity, Wealthfront" value="${(a.institution || '').replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <p class="text-xs text-slate-500">Same institution = grouped with combined balance</p>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-save mr-2"></i>Save</button>
+      </form>
+    `);
+    document.getElementById('accountEditForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      a.name = document.getElementById('accountEditName').value.trim();
+      a.type = document.getElementById('accountEditType').value;
+      a.institution = (document.getElementById('accountEditInstitution')?.value || '').trim() || null;
+      saveData('finance', finance);
+      renderFinance();
+      closeModal();
     });
   };
 
@@ -2030,6 +2102,8 @@ if (document.getElementById('mainContent')) {
             <option value="cash">Cash</option>
             <option value="other">Other</option>
           </select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Institution (optional)</label>
+          <input type="text" id="accountInstitution" placeholder="e.g. Fidelity, Wealthfront" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Current balance</label>
           <input type="number" id="accountBalance" step="0.01" value="0" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add</button>
@@ -2043,6 +2117,7 @@ if (document.getElementById('mainContent')) {
         id: generateId(),
         name: document.getElementById('accountName').value.trim(),
         type: document.getElementById('accountType').value,
+        institution: (document.getElementById('accountInstitution')?.value || '').trim() || null,
         currentBalance: bal,
         balanceHistory: [{ date: getLocalDateString(), balance: bal }],
         sortOrder: maxOrder + 1,

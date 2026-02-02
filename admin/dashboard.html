@@ -43,11 +43,13 @@
     .finance-tab-btn:not(.bg-blue-600):hover { background: #e2e8f0 !important; }
     .dark .finance-tab-btn:not(.bg-blue-600):hover { background: #475569 !important; }
     .finance-tab-btn.bg-blue-600:hover { background: #2563eb !important; }
-    /* Drag handle always visible */
+    /* Drag handle and row feedback - unified for accounts + transactions */
     .drag-handle { opacity: 0.6; transition: opacity 0.15s; }
     .drag-handle:hover { opacity: 1; }
     .account-row:hover .drag-handle, .txn-row:hover .drag-handle { opacity: 1; }
-    .account-row, .txn-row { transition: border-color 0.15s; }
+    .account-row, .txn-row { transition: border-color 0.15s, opacity 0.15s; cursor: default; }
+    .account-row[draggable="true"], .txn-row[draggable="true"] { cursor: grab; }
+    .account-row.dragging, .txn-row.dragging { cursor: grabbing; }
   </style>
 </head>
 
@@ -571,7 +573,7 @@
                 <span>Add Account</span>
               </button>
             </div>
-            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Manual balance snapshots for net worth. Update balances when you check (e.g. monthly). Drag <i class="fas fa-grip-vertical text-xs"></i> to reorder.</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Manual balance snapshots for net worth. Update balances when you check (e.g. monthly). Drag <i class="fas fa-grip-vertical text-xs"></i> to reorder. Set same Institution (e.g. Fidelity) on multiple accounts to group them.</p>
             <div id="accountsContainer" class="space-y-4">
               <div class="bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 text-center text-slate-400">
                 <i class="fas fa-university text-4xl mb-3 opacity-50"></i>
