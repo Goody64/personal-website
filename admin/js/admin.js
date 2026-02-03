@@ -414,22 +414,36 @@ if (document.getElementById('mainContent')) {
     await (window.dataService?.init?.() ?? Promise.resolve());
     await (window.dataService?.getSession?.() ?? Promise.resolve());
   }
+  const cacheKey = 'lifeErp_dashboardCache_' + (session?.user?.id ?? 'local');
+  let hadCache = false;
   let data = null;
   try {
-    data = window.dataService?.loadAll ? await window.dataService.loadAll() : null;
-  } catch (err) {
-    console.warn('Cloud sync load failed, using localStorage:', err);
-  }
-  // If signed in but data came back null or all empty, retry load once (recover from transient failure)
-  if (supabaseConfigured && typeof window.dataService?.getSession === 'function') {
-    const session = await window.dataService.getSession();
-    const isEmpty = !data || (!(data.tasks?.length) && !(data.goals?.length) && !(data.habits?.length) &&
-      !(data.finance?.transactions?.length) && !(data.finance?.accounts?.length) && !(data.journal?.length) && !(data.lifeLog?.length));
-    if (session && (data === null || isEmpty)) {
-      try {
-        const retry = await window.dataService.loadAll();
-        if (retry) data = retry;
-      } catch (_) {}
+    const cachedRaw = sessionStorage.getItem(cacheKey);
+    if (cachedRaw) {
+      const parsed = JSON.parse(cachedRaw);
+      if (parsed && typeof parsed === 'object' && (parsed.tasks != null || parsed.goals != null || parsed.habits != null || parsed.finance != null || parsed.journal != null || parsed.lifeLog != null)) {
+        data = parsed;
+        hadCache = true;
+      }
+    }
+  } catch (_) {}
+  if (!data) {
+    try {
+      data = window.dataService?.loadAll ? await window.dataService.loadAll() : null;
+    } catch (err) {
+      console.warn('Cloud sync load failed, using localStorage:', err);
+    }
+    // If signed in but data came back null or all empty, retry load once (recover from transient failure)
+    if (supabaseConfigured && typeof window.dataService?.getSession === 'function') {
+      const sessionAgain = await window.dataService.getSession();
+      const isEmpty = !data || (!(data.tasks?.length) && !(data.goals?.length) && !(data.habits?.length) &&
+        !(data.finance?.transactions?.length) && !(data.finance?.accounts?.length) && !(data.journal?.length) && !(data.lifeLog?.length));
+      if (sessionAgain && (data === null || isEmpty)) {
+        try {
+          const retry = await window.dataService.loadAll();
+          if (retry) data = retry;
+        } catch (_) {}
+      }
     }
   }
   // Data (from cloud if signed in, else localStorage)
@@ -595,6 +609,9 @@ if (document.getElementById('mainContent')) {
       (window.dataService?.clearLocalCache?.() ?? (() => {
         ['tasks','goals','habits','finance','journal','lifeLog'].forEach(d => localStorage.removeItem('lifeErp_' + d));
       }))();
+    } catch (_) {}
+    try {
+      Object.keys(sessionStorage).filter(k => k.startsWith('lifeErp_dashboardCache_')).forEach(k => sessionStorage.removeItem(k));
     } catch (_) {}
     try { clearSession(); } catch (_) {}
     window.location.href = 'index.html?logout=1';
@@ -3264,6 +3281,27 @@ if (document.getElementById('mainContent')) {
   // Alias for backwards compatibility
   window.openLifeLogModal = openLogModal;
   
+  // Apply fresh payload to state and re-render (used for cache revalidation)
+  function applyDataFromPayload(payload) {
+    if (!payload) return;
+    tasks = payload.tasks ?? [];
+    goals = payload.goals ?? [];
+    habits = payload.habits ?? [];
+    finance = payload.finance ?? { transactions: [], accounts: [] };
+    finance.transactions = finance.transactions || [];
+    finance.accounts = finance.accounts || [];
+    journal = payload.journal ?? [];
+    lifeLog = payload.lifeLog ?? [];
+    renderTasks();
+    renderGoals();
+    renderHabits();
+    renderFinance();
+    renderJournal();
+    renderCalendar();
+    renderDayDetail();
+    updateStats();
+  }
+  
   // ========================================
   // Initialize
   // ========================================
@@ -3290,6 +3328,19 @@ if (document.getElementById('mainContent')) {
     loadingScreen.classList.add('fade-out');
     setTimeout(() => loadingScreen.remove(), 300);
   }
+  // Persist cache for instant load on next refresh; revalidate in background if we used cache
+  try {
+    if (hadCache && window.dataService?.loadAll) {
+      window.dataService.loadAll().then(fresh => {
+        if (fresh) {
+          applyDataFromPayload(fresh);
+          sessionStorage.setItem(cacheKey, JSON.stringify(fresh));
+        }
+      }).catch(() => {});
+    } else {
+      sessionStorage.setItem(cacheKey, JSON.stringify(data));
+    }
+  } catch (_) {}
 
   // Profile section (Settings page)
   const updateProfileSection = async () => {
@@ -3391,6 +3442,7 @@ if (document.getElementById('mainContent')) {
         `;
         cloudEl.querySelector('#cloudSignOut')?.addEventListener('click', async () => {
           await window.dataService.signOut();
+          try { Object.keys(sessionStorage).filter(k => k.startsWith('lifeErp_dashboardCache_')).forEach(k => sessionStorage.removeItem(k)); } catch (_) {}
           window.location.reload();
         });
       } else {
