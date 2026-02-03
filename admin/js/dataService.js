@@ -109,6 +109,13 @@ const dataService = {
     return { data, error };
   },
 
+  async resetPasswordForEmail(email) {
+    if (!this._supabase) return { error: new Error('Supabase not configured') };
+    const redirectTo = typeof window !== 'undefined' ? (window.location.href.replace(/[^/]*$/, '') + 'dashboard.html') : undefined;
+    const { data, error } = await this._supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    return { data, error };
+  },
+
   async signOut() {
     if (this._supabase) await this._supabase.auth.signOut();
     this._useCloud = false;

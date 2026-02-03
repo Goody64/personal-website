@@ -250,22 +250,77 @@ if (document.getElementById('loginForm')) {
         window.location.href = 'dashboard.html';
         return;
       }
+      document.getElementById('openDashboardBlock')?.classList.remove('hidden');
       document.getElementById('supabaseLoginForm')?.classList.remove('hidden');
       if (new URLSearchParams(window.location.search).get('logout')) {
         document.getElementById('loginEmail').value = '';
         document.getElementById('loginPassword').value = '';
         document.getElementById('loginDisplayName').value = '';
         document.getElementById('loginError').classList.add('hidden');
+        document.getElementById('loginSuccess').classList.add('hidden');
         window.history.replaceState({}, '', 'index.html');
       }
-      
-      let isSignUpMode = false;
+
+      const form = document.getElementById('supabaseLoginForm');
       const displayNameGroup = document.getElementById('displayNameGroup');
+      const passwordRow = form?.querySelector('div:has(#loginPassword)')?.closest('div');
       const primaryBtn = document.getElementById('primaryAuthBtn');
       const secondaryBtn = document.getElementById('secondaryAuthBtn');
-      
+      const forgotRow = document.getElementById('forgotPasswordLink')?.closest('p');
+      const signUpHintRow = document.getElementById('signUpHint')?.closest('p');
+      let isSignUpMode = false;
+      let isForgotMode = false;
+
+      const setForgotMode = (on) => {
+        isForgotMode = on;
+        if (passwordRow) passwordRow.style.display = on ? 'none' : '';
+        if (primaryBtn) { primaryBtn.style.display = on ? 'none' : ''; primaryBtn.type = on ? 'button' : 'submit'; }
+        if (secondaryBtn) secondaryBtn.style.display = on ? 'none' : '';
+        if (forgotRow) forgotRow.style.display = on ? 'none' : '';
+        if (signUpHintRow) signUpHintRow.style.display = on ? 'none' : '';
+        if (!on) {
+          document.getElementById('loginError').classList.add('hidden');
+          document.getElementById('loginSuccess').classList.add('hidden');
+        }
+      };
+
+      document.getElementById('forgotPasswordLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (isForgotMode) { setForgotMode(false); form?.querySelector('#forgotBackBtn')?.remove(); form?.querySelector('#forgotSendBtn')?.remove(); return; }
+        form?.querySelector('#forgotBackBtn')?.remove();
+        form?.querySelector('#forgotSendBtn')?.remove();
+        setForgotMode(true);
+        const backBtn = document.createElement('button');
+        backBtn.type = 'button';
+        backBtn.className = 'w-full py-3 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl';
+        backBtn.textContent = 'Back to sign in';
+        backBtn.id = 'forgotBackBtn';
+        const sendBtn = document.createElement('button');
+        sendBtn.type = 'button';
+        sendBtn.id = 'forgotSendBtn';
+        sendBtn.className = 'w-full py-3 gradient-bg text-white font-semibold rounded-xl mt-2';
+        sendBtn.textContent = 'Send reset link';
+        sendBtn.onclick = async () => {
+          const email = document.getElementById('loginEmail').value.trim();
+          const err = document.getElementById('loginError');
+          const ok = document.getElementById('loginSuccess');
+          if (!email) { err.textContent = 'Enter your email'; err.classList.remove('hidden'); ok.classList.add('hidden'); return; }
+          err.classList.add('hidden');
+          sendBtn.disabled = true;
+          const { error } = await window.dataService.resetPasswordForEmail(email);
+          sendBtn.disabled = false;
+          if (error) { err.textContent = error.message; err.classList.remove('hidden'); ok.classList.add('hidden'); return; }
+          err.classList.add('hidden');
+          ok.textContent = 'Check your email for a reset link.';
+          ok.classList.remove('hidden');
+        };
+        backBtn.onclick = () => { setForgotMode(false); backBtn.remove(); sendBtn.remove(); };
+        form?.querySelector('.flex.gap-2')?.after(backBtn, sendBtn);
+      });
+
       secondaryBtn?.addEventListener('click', (e) => {
         e.preventDefault();
+        if (isForgotMode) return;
         if (isSignUpMode) {
           isSignUpMode = false;
           displayNameGroup?.classList.add('hidden');
@@ -287,33 +342,37 @@ if (document.getElementById('loginForm')) {
         e.preventDefault();
         secondaryBtn?.click();
       });
-      
+
       document.getElementById('togglePassword')?.addEventListener('click', function() {
         const pw = document.getElementById('loginPassword');
         pw.type = pw.type === 'password' ? 'text' : 'password';
         this.innerHTML = `<i class="fas fa-eye${pw.type === 'password' ? '' : '-slash'}"></i>`;
       });
-      
+
       const showAuthError = (errEl, msg) => {
         const friendly = /rate limit|rate_limit|email.*exceed/i.test(msg)
           ? 'Email rate limit hit. Disable "Confirm email" in Supabase (Auth → Providers → Email) or wait an hour.'
           : msg;
         errEl.textContent = friendly;
         errEl.classList.remove('hidden');
+        document.getElementById('loginSuccess')?.classList.add('hidden');
       };
-      document.getElementById('supabaseLoginForm')?.addEventListener('submit', async (e) => {
+      form?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (isForgotMode) return;
         const err = document.getElementById('loginError');
-        const email = document.getElementById('loginEmail').value;
+        const email = document.getElementById('loginEmail').value.trim();
         const password = document.getElementById('loginPassword').value;
         const displayName = document.getElementById('loginDisplayName')?.value?.trim();
-        
+
         if (isSignUpMode) {
           if (!displayName) { err.textContent = 'Display name is required for sign up'; err.classList.remove('hidden'); return; }
+          if (!email || !password) { err.textContent = 'Email and password required'; err.classList.remove('hidden'); return; }
           const { error } = await window.dataService.signUp(email, password, displayName);
           if (error) showAuthError(err, error.message);
           else window.location.href = 'dashboard.html';
         } else {
+          if (!email || !password) { err.textContent = 'Email and password required'; err.classList.remove('hidden'); return; }
           const { error } = await window.dataService.signIn(email, password);
           if (error) showAuthError(err, error.message);
           else window.location.href = 'dashboard.html';
@@ -333,13 +392,9 @@ if (document.getElementById('mainContent')) {
   const config = typeof SUPABASE_CONFIG !== 'undefined' ? SUPABASE_CONFIG : null;
   const supabaseConfigured = config?.url && config?.anonKey && !config.url.includes('YOUR_') && !config.anonKey.includes('YOUR_');
   
-  if (supabaseConfigured && typeof supabase !== 'undefined') {
-    await (window.dataService?.init?.() ?? Promise.resolve());
-    const session = await window.dataService?.getSession?.();
-    if (!session) {
-      window.location.href = 'index.html';
-      return;
-    }
+  await (window.dataService?.init?.() ?? Promise.resolve());
+  const session = supabaseConfigured && typeof supabase !== 'undefined' ? await window.dataService?.getSession?.() : null;
+  if (session) {
     const displayName = session.user?.user_metadata?.display_name || session.user?.email?.split('@')[0] || 'User';
     const email = session.user?.email || '';
     const initials = displayName.split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase() || (email[0] || '?').toUpperCase();
@@ -350,7 +405,8 @@ if (document.getElementById('mainContent')) {
   } else {
     document.getElementById('userDisplayName').textContent = 'Local';
     document.getElementById('userInitials').textContent = 'L';
-    document.getElementById('userEmail').textContent = 'No account';
+    document.getElementById('userEmail').textContent = supabaseConfigured ? 'No account – local only' : 'No account';
+    document.getElementById('welcomeText').textContent = "Here's your life at a glance. Sign in in Settings to enable cloud sync.";
   }
   
   // Ensure session is established before loading (avoids race where email shows but data loads from empty local)
@@ -3109,15 +3165,17 @@ if (document.getElementById('mainContent')) {
     window.openCloudModal = () => {
       openModal('Cloud Sync', `
         <div class="space-y-4">
-          <p class="text-sm text-slate-600 dark:text-slate-400">Sign in to sync your data across devices. Free with Supabase.</p>
+          <p class="text-sm text-slate-600 dark:text-slate-400">Sign in to sync your data across devices. Optional.</p>
           <form id="cloudAuthForm" class="space-y-3">
-            <input type="email" id="cloudEmail" placeholder="Email" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            <input type="password" id="cloudPassword" placeholder="Password" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <input type="email" id="cloudEmail" placeholder="Email" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <input type="password" id="cloudPassword" placeholder="Password" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
             <p id="cloudAuthError" class="text-sm text-red-500 hidden"></p>
+            <p id="cloudAuthSuccess" class="text-sm text-emerald-600 dark:text-emerald-400 hidden"></p>
             <div class="flex gap-2">
               <button type="submit" id="cloudSignInBtn" class="flex-1 py-2 gradient-bg text-white text-sm rounded-lg">Sign in</button>
               <button type="button" id="cloudSignUpBtn" class="flex-1 py-2 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm rounded-lg">Sign up</button>
             </div>
+            <p class="text-xs text-center"><a href="#" id="cloudForgotPassword" class="text-blue-500 hover:underline">Forgot password?</a></p>
           </form>
           <p class="text-xs text-slate-500 dark:text-slate-400">Local data is imported to cloud when you sign in.</p>
         </div>
@@ -3126,6 +3184,8 @@ if (document.getElementById('mainContent')) {
         const email = document.getElementById('cloudEmail').value;
         const password = document.getElementById('cloudPassword').value;
         const err = document.getElementById('cloudAuthError');
+        const ok = document.getElementById('cloudAuthSuccess');
+        ok?.classList.add('hidden');
         const { error } = isSignUp ? await window.dataService.signUp(email, password, email.split('@')[0]) : await window.dataService.signIn(email, password);
         if (error) {
           err.textContent = /rate limit|rate_limit|email.*exceed/i.test(error.message)
@@ -3138,8 +3198,21 @@ if (document.getElementById('mainContent')) {
         if (hasLocal) await window.dataService.importLocalToCloud();
         closeModal(); window.location.reload();
       };
-      document.getElementById('cloudAuthForm')?.addEventListener('submit', async (e) => { e.preventDefault(); await doAuth(false); });
-      document.getElementById('cloudSignUpBtn')?.addEventListener('click', async () => await doAuth(true));
+      document.getElementById('cloudAuthForm')?.addEventListener('submit', async (e) => { e.preventDefault(); const email = document.getElementById('cloudEmail').value; const pw = document.getElementById('cloudPassword').value; if (!email || !pw) { document.getElementById('cloudAuthError').textContent = 'Email and password required'; document.getElementById('cloudAuthError').classList.remove('hidden'); return; } await doAuth(false); });
+      document.getElementById('cloudSignUpBtn')?.addEventListener('click', async () => { const email = document.getElementById('cloudEmail').value; const pw = document.getElementById('cloudPassword').value; if (!email || !pw) { document.getElementById('cloudAuthError').textContent = 'Email and password required'; document.getElementById('cloudAuthError').classList.remove('hidden'); return; } await doAuth(true); });
+      document.getElementById('cloudForgotPassword')?.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('cloudEmail').value.trim();
+        const err = document.getElementById('cloudAuthError');
+        const ok = document.getElementById('cloudAuthSuccess');
+        if (!email) { err.textContent = 'Enter your email above first'; err.classList.remove('hidden'); ok.classList.add('hidden'); return; }
+        err.classList.add('hidden');
+        const { error } = await window.dataService.resetPasswordForEmail(email);
+        if (error) { err.textContent = error.message; err.classList.remove('hidden'); ok.classList.add('hidden'); return; }
+        err.classList.add('hidden');
+        ok.textContent = 'Check your email for a reset link.';
+        ok.classList.remove('hidden');
+      });
     };
     renderCloudUI();
   }
