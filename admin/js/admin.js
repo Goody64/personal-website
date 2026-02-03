@@ -545,17 +545,37 @@ if (document.getElementById('mainContent')) {
   });
   document.getElementById('mobileMenuBtn')?.addEventListener('click', () => sidebar.classList.toggle('-translate-x-full'));
   
-  const showSection = (id) => {
+  const SECTION_TITLES = {
+    dashboard: 'Dashboard',
+    tasks: 'Tasks',
+    goals: 'Goals',
+    habits: 'Habits',
+    lifelog: 'Life Log',
+    library: 'Library',
+    finance: 'Finance',
+    health: 'Health',
+    journal: 'Journal',
+    settings: 'Settings'
+  };
+  const showSection = (id, updateHash = true) => {
     document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden'));
     document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active', 'bg-blue-600'));
     document.getElementById(id)?.classList.remove('hidden');
     document.querySelector(`[data-section="${id}"]`)?.classList.add('active', 'bg-blue-600');
     if (window.innerWidth < 1024) sidebar.classList.add('-translate-x-full');
     
+    // Update URL hash (without triggering hashchange loop)
+    if (updateHash && window.location.hash !== '#' + id) {
+      history.replaceState(null, '', '#' + id);
+    }
+    // Update page title
+    document.title = (SECTION_TITLES[id] || 'Dashboard') + ' | Life ERP';
+    
     // Render section-specific content
     if (id === 'lifelog') { renderCalendar(); renderDayDetail(); }
     if (id === 'library') renderLibrary();
     if (id === 'finance') renderFinance();
+    if (id === 'health') renderHealthSection();
     if (id === 'settings') { updateCloudSyncStatus(); updateProfileSection(); }
   };
   window.showSection = showSection;
@@ -563,9 +583,8 @@ if (document.getElementById('mainContent')) {
   document.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', (e) => { e.preventDefault(); showSection(link.dataset.section); });
   });
-  const hash = window.location.hash.slice(1);
-  if (hash && document.getElementById(hash)) showSection(hash);
-  window.addEventListener('hashchange', () => { const h = window.location.hash.slice(1); if (h && document.getElementById(h)) showSection(h); });
+  // Restore section from hash on load (handled after app ready)
+  window.addEventListener('hashchange', () => { const h = window.location.hash.slice(1); if (h && document.getElementById(h)) showSection(h, false); });
   
   // Logout - sign out of Supabase and clear local cache so next user doesn't see old data (always redirect even if signOut fails)
   const handleLogout = async () => {
@@ -1884,9 +1903,10 @@ if (document.getElementById('mainContent')) {
             <h4 class="font-medium text-slate-900 dark:text-white ${doneToday ? 'line-through opacity-60' : ''}">${(h.name || '').replace(/</g, '&lt;')}</h4>
             <p class="text-sm text-slate-500 dark:text-slate-400">${h.frequency}</p>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2">
             <div class="flex items-center gap-2 ${streak > 0 ? 'text-orange-500' : 'text-slate-400'}"><i class="fas fa-fire"></i><span class="font-bold">${streak}</span></div>
-            <button onclick="deleteHabit('${h.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"><i class="fas fa-trash text-xs"></i></button>
+            <button onclick="showHabitStats('${h.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="View stats"><i class="fas fa-chart-line text-xs"></i></button>
+            <button onclick="deleteHabit('${h.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-xs"></i></button>
           </div>
         </div>
         <div class="flex items-center gap-1 mt-3 justify-center">
@@ -1923,6 +1943,86 @@ if (document.getElementById('mainContent')) {
     renderHabits(); 
   };
   
+  window.showHabitStats = (id) => {
+    const h = habits.find(x => x.id === id);
+    if (!h) return;
+    const completions = new Set(h.completions || []);
+    const streak = calculateStreak(h);
+    const today = new Date();
+    const weeks = 12; // Last 12 weeks
+    const days = weeks * 7;
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - days + 1);
+    // Align to start of week (Sunday)
+    startDate.setDate(startDate.getDate() - startDate.getDay());
+    
+    // Calculate completion rate
+    const totalDays = days;
+    const completedDays = (h.completions || []).filter(d => {
+      const dt = new Date(d + 'T12:00:00');
+      return dt >= startDate && dt <= today;
+    }).length;
+    const rate = totalDays > 0 ? Math.round((completedDays / totalDays) * 100) : 0;
+    
+    // Build heatmap grid (7 rows for days of week, 12 columns for weeks)
+    let heatmapHtml = '<div class="flex gap-1">';
+    // Day labels
+    heatmapHtml += '<div class="flex flex-col gap-[3px] text-[10px] text-slate-400 pr-1">';
+    ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(d => {
+      heatmapHtml += `<div class="h-4 flex items-center">${d}</div>`;
+    });
+    heatmapHtml += '</div>';
+    // Weeks
+    for (let w = 0; w < weeks; w++) {
+      heatmapHtml += '<div class="flex flex-col gap-[3px]">';
+      for (let d = 0; d < 7; d++) {
+        const cellDate = new Date(startDate);
+        cellDate.setDate(startDate.getDate() + (w * 7) + d);
+        const dateStr = cellDate.getFullYear() + '-' + String(cellDate.getMonth() + 1).padStart(2, '0') + '-' + String(cellDate.getDate()).padStart(2, '0');
+        const done = completions.has(dateStr);
+        const isToday = dateStr === getLocalDateString();
+        const isPast = cellDate <= today;
+        const bg = done ? 'bg-green-500' : (isPast ? 'bg-slate-200 dark:bg-slate-700' : 'bg-slate-100 dark:bg-slate-800');
+        const ring = isToday ? 'ring-2 ring-blue-500' : '';
+        heatmapHtml += `<div class="w-4 h-4 rounded-sm ${bg} ${ring}" title="${formatDate(dateStr)}${done ? ' ✓' : ''}"></div>`;
+      }
+      heatmapHtml += '</div>';
+    }
+    heatmapHtml += '</div>';
+    
+    openModal(`${(h.name || 'Habit').replace(/</g, '&lt;')} – Stats`, `
+      <div class="space-y-6">
+        <div class="grid grid-cols-3 gap-4 text-center">
+          <div class="bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
+            <p class="text-2xl font-bold text-orange-500">${streak}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Current Streak</p>
+          </div>
+          <div class="bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
+            <p class="text-2xl font-bold text-green-500">${rate}%</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Completion Rate</p>
+          </div>
+          <div class="bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
+            <p class="text-2xl font-bold text-blue-500">${completedDays}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Days Completed</p>
+          </div>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Last ${weeks} weeks</p>
+          <div class="overflow-x-auto pb-2">
+            ${heatmapHtml}
+          </div>
+          <div class="flex items-center justify-end gap-2 mt-2 text-xs text-slate-400">
+            <span>Less</span>
+            <div class="w-3 h-3 rounded-sm bg-slate-200 dark:bg-slate-700"></div>
+            <div class="w-3 h-3 rounded-sm bg-green-300"></div>
+            <div class="w-3 h-3 rounded-sm bg-green-500"></div>
+            <span>More</span>
+          </div>
+        </div>
+      </div>
+    `);
+  };
+
   window.addHabitModal = () => {
     openModal('Add Habit', `
       <form id="habitForm" class="space-y-4">
@@ -2996,6 +3096,131 @@ if (document.getElementById('mainContent')) {
   // Health section button
   document.getElementById('addHealthBtn')?.addEventListener('click', () => openLogModal('health'));
 
+  // Health section rendering
+  let chartHealthTrend = null;
+  const renderHealthSection = () => {
+    const today = getLocalDateString();
+    const healthEntries = lifeLog.filter(e => e.type === 'health');
+    const workoutEntries = lifeLog.filter(e => e.type === 'workout' || e.type === 'run' || e.type === 'climbing');
+    const goals = typeof getHealthGoals === 'function' ? getHealthGoals() : { steps: 10000, water: 8, sleep: 8 };
+    
+    // Update today's stats
+    const todayHealth = healthEntries.filter(e => e.date === today);
+    const todaySteps = todayHealth.filter(e => e.data?.metric === 'Steps').reduce((s, e) => s + (parseFloat(e.data.value) || 0), 0);
+    const todayWater = todayHealth.filter(e => e.data?.metric === 'Water (glasses)').reduce((s, e) => s + (parseFloat(e.data.value) || 0), 0);
+    const recentSleep = healthEntries.filter(e => e.data?.metric === 'Sleep (hrs)').sort((a, b) => b.date.localeCompare(a.date))[0];
+    const recentWeight = healthEntries.filter(e => e.data?.metric === 'Weight').sort((a, b) => b.date.localeCompare(a.date))[0];
+    
+    document.getElementById('todaySteps').textContent = todaySteps.toLocaleString();
+    document.getElementById('todayWater').textContent = todayWater;
+    document.getElementById('lastSleep').textContent = recentSleep ? parseFloat(recentSleep.data.value).toFixed(1) + 'h' : '--';
+    document.getElementById('currentWeight').textContent = recentWeight ? parseFloat(recentWeight.data.value).toFixed(1) : '--';
+    
+    // Populate metric dropdown with all metrics that have data (including custom)
+    const metricSelect = document.getElementById('healthMetricSelect');
+    if (metricSelect) {
+      const allMetrics = new Set(['Steps', 'Weight', 'Sleep (hrs)', 'Water (glasses)', 'Calories']);
+      healthEntries.forEach(e => { if (e.data?.metric) allMetrics.add(e.data.metric); });
+      const currentVal = metricSelect.value;
+      metricSelect.innerHTML = [...allMetrics].map(m => `<option value="${m}" ${m === currentVal ? 'selected' : ''}>${m.replace(/</g, '&lt;')}</option>`).join('');
+    }
+    
+    // Render trend chart
+    const renderTrendChart = () => {
+      const metric = metricSelect?.value || 'Steps';
+      const metricEntries = healthEntries.filter(e => e.data?.metric === metric).sort((a, b) => a.date.localeCompare(b.date));
+      // Aggregate by date (sum for additive metrics, last for others)
+      const byDate = {};
+      metricEntries.forEach(e => {
+        const d = e.date;
+        const v = parseFloat(e.data.value) || 0;
+        if (metric === 'Steps' || metric === 'Water (glasses)' || metric === 'Calories') {
+          byDate[d] = (byDate[d] || 0) + v;
+        } else {
+          byDate[d] = v; // Last value for weight/sleep
+        }
+      });
+      const dates = Object.keys(byDate).sort().slice(-30); // Last 30 days
+      const values = dates.map(d => byDate[d]);
+      const labels = dates.map(d => { const dt = new Date(d + 'T12:00:00'); return (dt.getMonth() + 1) + '/' + dt.getDate(); });
+      
+      // Get goal for this metric
+      let goal = null;
+      let goalLabel = '';
+      if (metric === 'Steps') { goal = goals.steps; goalLabel = `Goal: ${goal.toLocaleString()} steps`; }
+      else if (metric === 'Water (glasses)') { goal = goals.water; goalLabel = `Goal: ${goal} glasses`; }
+      else if (metric === 'Sleep (hrs)') { goal = goals.sleep; goalLabel = `Goal: ${goal} hours`; }
+      
+      const goalEl = document.getElementById('healthTrendGoal');
+      if (goalEl) {
+        if (goal && values.length > 0) {
+          const avg = values.reduce((a, b) => a + b, 0) / values.length;
+          const pct = Math.round((avg / goal) * 100);
+          goalEl.innerHTML = `${goalLabel} · Average: ${avg.toFixed(1)} (<span class="${pct >= 100 ? 'text-green-500' : 'text-amber-500'}">${pct}% of goal</span>)`;
+        } else {
+          goalEl.textContent = goal ? goalLabel : '';
+        }
+      }
+      
+      const ctx = document.getElementById('chartHealthTrend');
+      if (!ctx) return;
+      const isDark = document.documentElement.classList.contains('dark');
+      if (chartHealthTrend) chartHealthTrend.destroy();
+      if (dates.length === 0) {
+        ctx.parentElement.innerHTML = '<div class="h-64 flex items-center justify-center text-slate-400"><p>No data for this metric. Log health entries to see trends.</p></div>';
+        return;
+      }
+      chartHealthTrend = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: metric, data: values, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.3, fill: true },
+            ...(goal ? [{ label: 'Goal', data: dates.map(() => goal), borderColor: '#10b981', borderDash: [5, 5], pointRadius: 0 }] : [])
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: !!goal, labels: { color: isDark ? '#94a3b8' : '#64748b' } } },
+          scales: {
+            x: { ticks: { color: isDark ? '#64748b' : '#94a3b8' }, grid: { color: isDark ? '#334155' : '#e2e8f0' } },
+            y: { beginAtZero: true, ticks: { color: isDark ? '#64748b' : '#94a3b8' }, grid: { color: isDark ? '#334155' : '#e2e8f0' } }
+          }
+        }
+      });
+    };
+    metricSelect?.removeEventListener('change', renderTrendChart);
+    metricSelect?.addEventListener('change', renderTrendChart);
+    renderTrendChart();
+    
+    // Render workouts
+    const workoutsContainer = document.getElementById('workoutsContainer');
+    if (workoutsContainer) {
+      const recent = workoutEntries.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
+      if (recent.length === 0) {
+        workoutsContainer.innerHTML = `<div class="text-center py-8 text-slate-400"><i class="fas fa-running text-3xl mb-2 opacity-50"></i><p class="text-sm">No workouts logged</p></div>`;
+      } else {
+        workoutsContainer.innerHTML = `<div class="space-y-2">${recent.map(e => {
+          const t = ACTIVITY_TYPES[e.type] || {};
+          const title = e.data?.workout || e.data?.type || e.data?.distance || t.name || 'Workout';
+          const details = e.data?.duration ? e.data.duration + ' min' : '';
+          return `<div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: ${t.color || '#3b82f6'}20">
+              <i class="fas ${t.icon || 'fa-dumbbell'}" style="color: ${t.color || '#3b82f6'}"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-slate-900 dark:text-white text-sm truncate">${String(title).replace(/</g, '&lt;')}</p>
+              <p class="text-xs text-slate-500">${formatDate(e.date)}${details ? ' · ' + details : ''}</p>
+            </div>
+          </div>`;
+        }).join('')}</div>`;
+      }
+    }
+    
+    // Render health goals
+    if (typeof renderHealthGoals === 'function') renderHealthGoals();
+  };
+
   // Health Goals Management
   const getHealthGoals = () => {
     try { 
@@ -3050,6 +3275,21 @@ if (document.getElementById('mainContent')) {
   renderCalendar();
   renderDayDetail();
   updateStats();
+  
+  // App ready: hide loading, show main content, restore section from hash
+  const loadingScreen = document.getElementById('loadingScreen');
+  const mainApp = document.getElementById('mainApp');
+  const initialHash = window.location.hash.slice(1);
+  if (initialHash && document.getElementById(initialHash)) {
+    showSection(initialHash, false);
+  } else {
+    showSection('dashboard', true);
+  }
+  if (mainApp) mainApp.classList.add('ready');
+  if (loadingScreen) {
+    loadingScreen.classList.add('fade-out');
+    setTimeout(() => loadingScreen.remove(), 300);
+  }
 
   // Profile section (Settings page)
   const updateProfileSection = async () => {

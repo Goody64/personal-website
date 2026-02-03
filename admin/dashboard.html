@@ -62,11 +62,31 @@
     /* Yin-yang theme icon: inverted colors by mode (dark symbol in light mode, light in dark mode) */
     .theme-icon-light { color: #334155; }
     .dark .theme-icon-dark { color: #e2e8f0; }
+    /* Loading screen */
+    #loadingScreen { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: #f1f5f9; transition: opacity 0.3s; }
+    .dark #loadingScreen { background: #0f172a; }
+    #loadingScreen.fade-out { opacity: 0; pointer-events: none; }
+    /* Hide main content until ready */
+    #mainApp { opacity: 0; transition: opacity 0.3s; }
+    #mainApp.ready { opacity: 1; }
+    /* Habit calendar heatmap */
+    .habit-heatmap { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+    .habit-heatmap-cell { width: 100%; aspect-ratio: 1; border-radius: 4px; }
   </style>
 </head>
 
 <body class="bg-slate-100 dark:bg-slate-900 font-sans transition-colors">
-  <div class="flex min-h-screen">
+  <!-- Loading Screen -->
+  <div id="loadingScreen">
+    <div class="text-center">
+      <div class="w-16 h-16 gradient-bg rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+        <i class="fas fa-infinity text-2xl text-white"></i>
+      </div>
+      <p class="text-slate-500 dark:text-slate-400 text-sm">Loading...</p>
+    </div>
+  </div>
+  
+  <div id="mainApp" class="flex min-h-screen">
     <!-- Sidebar -->
     <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-slate-900 dark:bg-slate-950 text-white z-50 transition-all duration-300 flex flex-col">
       <!-- Logo -->
@@ -701,6 +721,29 @@
               <p class="text-3xl font-bold text-slate-900 dark:text-white" id="currentWeight">--</p>
               <p class="text-sm text-slate-500 dark:text-slate-400">Current Weight</p>
               <p class="text-xs text-slate-400 mt-1">Track regularly</p>
+            </div>
+          </div>
+          
+          <!-- Health Metric Trends -->
+          <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 mb-6">
+            <div class="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <i class="fas fa-chart-line text-blue-500"></i>
+                Metric Trends
+              </h3>
+              <select id="healthMetricSelect" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+                <option value="Steps">Steps</option>
+                <option value="Weight">Weight</option>
+                <option value="Sleep (hrs)">Sleep</option>
+                <option value="Water (glasses)">Water</option>
+                <option value="Calories">Calories</option>
+              </select>
+            </div>
+            <div class="p-5">
+              <div id="healthTrendContainer" class="h-64">
+                <canvas id="chartHealthTrend"></canvas>
+              </div>
+              <div id="healthTrendGoal" class="mt-3 text-center text-sm text-slate-500 dark:text-slate-400"></div>
             </div>
           </div>
           
