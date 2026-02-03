@@ -582,6 +582,7 @@ if (document.getElementById('mainContent')) {
   };
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.getElementById('logoutSettings')?.addEventListener('click', handleLogout);
+  document.getElementById('sidebarProfileBtn')?.addEventListener('click', () => showSection('settings'));
   
   // ========================================
   // Modal

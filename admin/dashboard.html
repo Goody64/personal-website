@@ -133,15 +133,17 @@
         </a>
       </nav>
       
-      <!-- User -->
+      <!-- User (click goes to Settings) -->
       <div class="p-4 border-t border-slate-800">
         <div class="flex items-center gap-3">
-          <div id="userInitials" class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center font-bold">--</div>
-          <div class="sidebar-text flex-1">
-            <p id="userDisplayName" class="font-semibold text-sm">User</p>
-            <p id="userEmail" class="text-xs text-slate-500 truncate">--</p>
-          </div>
-          <button id="logoutBtn" class="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors" title="Logout">
+          <button type="button" id="sidebarProfileBtn" class="flex items-center gap-3 flex-1 min-w-0 rounded-xl hover:bg-slate-800 transition-colors text-left p-1 -m-1" title="Settings">
+            <div id="userInitials" class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center font-bold flex-shrink-0">--</div>
+            <div class="sidebar-text flex-1 min-w-0">
+              <p id="userDisplayName" class="font-semibold text-sm truncate">User</p>
+              <p id="userEmail" class="text-xs text-slate-500 truncate">--</p>
+            </div>
+          </button>
+          <button id="logoutBtn" class="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors flex-shrink-0" title="Logout">
             <i class="fas fa-sign-out-alt"></i>
           </button>
         </div>
