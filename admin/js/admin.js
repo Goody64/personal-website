@@ -353,14 +353,29 @@ if (document.getElementById('mainContent')) {
     document.getElementById('userEmail').textContent = 'No account';
   }
   
+  // Ensure session is established before loading (avoids race where email shows but data loads from empty local)
+  if (supabaseConfigured && typeof supabase !== 'undefined') {
+    await (window.dataService?.init?.() ?? Promise.resolve());
+    await (window.dataService?.getSession?.() ?? Promise.resolve());
+  }
   let data = null;
   try {
-    await (window.dataService?.init?.() ?? Promise.resolve());
     data = window.dataService?.loadAll ? await window.dataService.loadAll() : null;
   } catch (err) {
-    console.warn('Cloud sync init failed, using localStorage:', err);
+    console.warn('Cloud sync load failed, using localStorage:', err);
   }
-  
+  // If signed in but data came back null or all empty, retry load once (recover from transient failure)
+  if (supabaseConfigured && typeof window.dataService?.getSession === 'function') {
+    const session = await window.dataService.getSession();
+    const isEmpty = !data || (!(data.tasks?.length) && !(data.goals?.length) && !(data.habits?.length) &&
+      !(data.finance?.transactions?.length) && !(data.finance?.accounts?.length) && !(data.journal?.length) && !(data.lifeLog?.length));
+    if (session && (data === null || isEmpty)) {
+      try {
+        const retry = await window.dataService.loadAll();
+        if (retry) data = retry;
+      } catch (_) {}
+    }
+  }
   // Data (from cloud if signed in, else localStorage)
   let tasks = data ? (data.tasks ?? []) : (getFromStorage(STORAGE_KEYS.tasks) || []);
   let goals = data ? (data.goals ?? []) : (getFromStorage(STORAGE_KEYS.goals) || []);
@@ -384,8 +399,8 @@ if (document.getElementById('mainContent')) {
     const icon = document.getElementById('themeIcon');
     if (!icon) return;
     const isDark = html.classList.contains('dark');
-    icon.classList.remove('fa-lightbulb', 'fa-moon');
-    icon.classList.add(isDark ? 'fa-lightbulb' : 'fa-moon');
+    icon.classList.remove('theme-icon-light', 'theme-icon-dark');
+    icon.classList.add(isDark ? 'theme-icon-dark' : 'theme-icon-light');
   };
   if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     html.classList.add('dark');
@@ -496,13 +511,17 @@ if (document.getElementById('mainContent')) {
   if (hash && document.getElementById(hash)) showSection(hash);
   window.addEventListener('hashchange', () => { const h = window.location.hash.slice(1); if (h && document.getElementById(h)) showSection(h); });
   
-  // Logout - sign out of Supabase and clear local cache so next user doesn't see old data
+  // Logout - sign out of Supabase and clear local cache so next user doesn't see old data (always redirect even if signOut fails)
   const handleLogout = async () => {
-    await (window.dataService?.signOut?.() ?? Promise.resolve());
-    (window.dataService?.clearLocalCache?.() ?? (() => {
-      ['tasks','goals','habits','finance','journal','lifeLog'].forEach(d => localStorage.removeItem('lifeErp_' + d));
-    }))();
-    clearSession();
+    try {
+      await (window.dataService?.signOut?.() ?? Promise.resolve());
+    } catch (_) {}
+    try {
+      (window.dataService?.clearLocalCache?.() ?? (() => {
+        ['tasks','goals','habits','finance','journal','lifeLog'].forEach(d => localStorage.removeItem('lifeErp_' + d));
+      }))();
+    } catch (_) {}
+    try { clearSession(); } catch (_) {}
     window.location.href = 'index.html?logout=1';
   };
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);

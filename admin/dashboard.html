@@ -59,6 +59,9 @@
     .account-actions-col { width: 8rem; min-width: 8rem; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; gap: 0.25rem; }
     /* Sub-accounts under an institution: indented and slightly smaller for hierarchy */
     .account-slot-expand { max-width: calc(100% - 4.5rem); }
+    /* Yin-yang theme icon: inverted colors by mode (dark symbol in light mode, light in dark mode) */
+    .theme-icon-light { color: #334155; }
+    .dark .theme-icon-dark { color: #e2e8f0; }
   </style>
 </head>
 
@@ -163,7 +166,7 @@
           <div class="flex items-center gap-3">
             <div id="cloudSyncContainer"></div>
             <button id="themeToggle" class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-blue-500 hover:text-white transition-all" title="Toggle light/dark mode">
-              <i id="themeIcon" class="fas transition-transform duration-300"></i>
+              <i id="themeIcon" class="fas fa-yin-yang transition-transform duration-300 theme-icon-light"></i>
             </button>
             <div class="relative">
               <button id="notifBtn" class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-blue-500 hover:text-white transition-all relative" title="Notifications">
