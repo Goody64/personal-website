@@ -2305,7 +2305,7 @@ if (document.getElementById('mainContent')) {
               balance: formatCurrency(totalBal),
               startCollapsed: collapsed
             })}
-            <div class="account-slot-expand mt-2 ml-6 space-y-2 ${collapsed ? 'hidden' : ''}" id="${groupId}">`;
+            <div class="account-slot-expand mt-2 ml-12 space-y-2 ${collapsed ? 'hidden' : ''}" id="${groupId}">`;
           group.forEach((a, idx) => {
             html += renderAccountRow(a, parseFloat(a.currentBalance) || 0, idx === 0, idx === group.length - 1);
           });
@@ -2336,7 +2336,7 @@ if (document.getElementById('mainContent')) {
   };
 
   const renderAccountRow = (a, bal, isFirst, isLast) => {
-    return `<div class="flex items-center gap-2 p-4 pl-5 ml-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 group account-subrow" data-account-id="${a.id}">
+    return `<div class="flex items-center gap-2 p-4 pl-5 ml-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 group account-subrow" data-account-id="${a.id}">
       <div class="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100">
         <button onclick="moveAccountInGroup('${a.id}', -1)" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 ${isFirst ? 'invisible' : ''}" title="Move up"><i class="fas fa-chevron-up text-xs"></i></button>
         <button onclick="moveAccountInGroup('${a.id}', 1)" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 ${isLast ? 'invisible' : ''}" title="Move down"><i class="fas fa-chevron-down text-xs"></i></button>
