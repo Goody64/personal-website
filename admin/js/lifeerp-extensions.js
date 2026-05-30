@@ -42,8 +42,15 @@
 
   const filterBySource = (txns) => {
     if (financeSourceFilter === 'all') return txns;
+    if (financeSourceFilter === 'transfer') return txns.filter(t => t.type === 'transfer');
     return txns.filter(t => txnSource(t) === financeSourceFilter);
   };
+
+  const isSpendingExpense = (t) => t.type === 'expense';
+
+  const CC_PAYMENT_RE = /credit\s*card|card\s*payment|card\s*pymt|autopay|auto\s*pay|payment\s*thank\s*you|online\s*payment|payment\s*to\s*chase|chase\s*credit|capital\s*one|discover\s*card|amex|american\s*express|citi\s*card|apple\s*card|barclays\s*card|syncb|card\s*bill|visa\s*payment|mastercard/i;
+
+  const looksLikeCcPayment = (desc) => CC_PAYMENT_RE.test(String(desc || ''));
 
   // ─── Finance: month filter, budgets, recurring, balance sync ───
   function patchFinance() {
@@ -60,7 +67,7 @@
       if (picker && picker.value !== ym) picker.value = ym;
       const monthTxns = filterBySource(txnsInMonth(f.transactions, ym));
       const income = monthTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-      const expenses = monthTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+      const expenses = monthTxns.filter(isSpendingExpense).reduce((s, t) => s + t.amount, 0);
       const elInc = document.getElementById('totalIncome');
       const elExp = document.getElementById('totalExpenses');
       const elBal = document.getElementById('totalBalance');
@@ -83,13 +90,19 @@
           html += `<div class="mb-4"><div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 px-1">${api.formatDate(dateStr)}</div><div class="space-y-2 txn-date-group" data-date="${dateStr}">`;
           byDate[dateStr].forEach(t => {
             const src = txnSource(t);
-            const srcLabel = SOURCE_LABELS[src] || src;
-            const srcColor = SOURCE_COLORS[src] || 'text-slate-400';
+            const srcLabel = t.type === 'transfer' ? 'Transfer' : (SOURCE_LABELS[src] || src);
+            const srcColor = t.type === 'transfer' ? 'text-slate-400' : (SOURCE_COLORS[src] || 'text-slate-400');
+            const isInc = t.type === 'income';
+            const isXfer = t.type === 'transfer';
+            const boxCls = isInc ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : isXfer ? 'bg-slate-200 dark:bg-slate-600 text-slate-500' : 'bg-red-100 dark:bg-red-900/30 text-red-600';
+            const iconCls = isXfer ? 'fa-right-left' : `fa-arrow-${isInc ? 'down' : 'up'}`;
+            const amtCls = isInc ? 'text-green-600' : isXfer ? 'text-slate-500' : 'text-red-600';
+            const sign = isInc ? '+' : isXfer ? '' : '-';
             html += `<div class="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl group txn-row" data-txn-id="${t.id}" draggable="true">
               <span class="cursor-grab text-slate-400 drag-handle"><i class="fas fa-grip-vertical text-sm"></i></span>
-              <div class="w-10 h-10 flex-shrink-0 ${t.type === 'income' ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : 'bg-red-100 dark:bg-red-900/30 text-red-600'} rounded-lg flex items-center justify-center"><i class="fas fa-arrow-${t.type === 'income' ? 'down' : 'up'}"></i></div>
+              <div class="w-10 h-10 flex-shrink-0 ${boxCls} rounded-lg flex items-center justify-center"><i class="fas ${iconCls}"></i></div>
               <div class="flex-1 min-w-0"><p class="font-medium text-slate-900 dark:text-white text-sm truncate">${(t.description || '').replace(/</g, '&lt;')}</p><p class="text-xs text-slate-500">${t.category || ''}<span class="${srcColor}"> · ${srcLabel}</span></p></div>
-              <p class="font-bold flex-shrink-0 ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}">${t.type === 'income' ? '+' : '-'}${api.formatCurrency(t.amount)}</p>
+              <p class="font-bold flex-shrink-0 ${amtCls}">${sign}${api.formatCurrency(t.amount)}</p>
               <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100">
                 <button onclick="editTxn('${t.id}')" class="p-2 text-blue-500" title="Edit"><i class="fas fa-pen text-xs"></i></button>
                 <button onclick="deleteTxn('${t.id}')" class="p-2 text-red-400" title="Delete"><i class="fas fa-trash text-xs"></i></button>
@@ -179,7 +192,7 @@
     const f = api.finance;
     f.budgets = f.budgets || {};
     const monthBudgets = f.budgets[ym] || f.budgets.default || {};
-    const monthTxns = txnsInMonth(f.transactions, ym).filter(t => t.type === 'expense');
+    const monthTxns = txnsInMonth(f.transactions, ym).filter(isSpendingExpense);
     const spent = {};
     monthTxns.forEach(t => { const c = t.category || 'Other'; spent[c] = (spent[c] || 0) + t.amount; });
     const cats = [...new Set([...api.TXN_CATEGORIES.filter(c => !['Salary', 'Interest'].includes(c)), ...Object.keys(monthBudgets)])];
@@ -259,7 +272,14 @@
       const amt = parseFloat(get('TRNAMT')) || 0;
       const dateRaw = get('DTPOSTED') || get('DTUSER');
       const date = dateRaw.length >= 8 ? `${dateRaw.slice(0, 4)}-${dateRaw.slice(4, 6)}-${dateRaw.slice(6, 8)}` : api.getLocalDateString();
-      txns.push({ date, description: get('NAME') || get('MEMO') || 'Import', amount: Math.abs(amt), type: amt >= 0 ? 'income' : 'expense', category: 'Other', _importHash: get('FITID') || `${date}-${amt}-${get('MEMO')}` });
+      const desc = get('NAME') || get('MEMO') || 'Import';
+      let type = amt >= 0 ? 'income' : 'expense';
+      let category = 'Other';
+      if (amt < 0 && looksLikeCcPayment(desc)) {
+        type = 'transfer';
+        category = 'Transfer';
+      }
+      txns.push({ date, description: desc, amount: Math.abs(amt), type, category, _importHash: get('FITID') || `${date}-${amt}-${get('MEMO')}` });
     }
     const balMatch = text.match(/<LEDGERBAL>[\s\S]*?<BALAMT>([^<]+)/i);
     if (balMatch) balances.ledger = parseFloat(balMatch[1]);
@@ -341,7 +361,7 @@
         (parsedRows.length > 8 ? `<p class="text-slate-400 mt-1">+${parsedRows.length - 8} more</p>` : '') +
         (() => {
           const max = Math.max(...parsedRows.map(r => r.amount || 0), 0);
-          const totalExp = parsedRows.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+          const totalExp = parsedRows.filter(isSpendingExpense).reduce((s, r) => s + r.amount, 0);
           if (max > 100000 || totalExp > 500000) {
             return `<p class="text-red-600 dark:text-red-400 font-medium mt-2"><i class="fas fa-exclamation-triangle mr-1"></i>Amounts look wrong (max ${api.formatCurrency(max)}). Check the preview before importing — your CSV columns may not match.</p>`;
           }
@@ -417,6 +437,30 @@
     if (!confirm('Remove Life Log finance entries that match a bank/file import on the same date and amount? Manual entries are not touched.')) return;
     const n = dedupeLifeLogAgainstImports();
     api.addNotification?.('Dedupe complete', n ? `Removed ${n} duplicate Life Log entr${n === 1 ? 'y' : 'ies'}.` : 'No matching duplicates found.', n ? 'info' : 'warning');
+  }
+
+  function markCcPaymentsAsTransfers() {
+    let n = 0;
+    (api.finance.transactions || []).forEach(t => {
+      if (t.type === 'expense' && looksLikeCcPayment(t.description)) {
+        t.type = 'transfer';
+        t.category = 'Transfer';
+        n++;
+      }
+    });
+    if (n) {
+      api.saveData('finance', api.finance);
+      api.renderFinance();
+      api.updateStats?.();
+      api.renderDashboardWidgets?.();
+    }
+    return n;
+  }
+
+  function confirmMarkCcTransfers() {
+    if (!confirm('Mark imported CC statement payments as transfers? They will stay visible but won\'t count toward spending totals.')) return;
+    const n = markCcPaymentsAsTransfers();
+    api.addNotification?.('CC payments updated', n ? `Marked ${n} payment${n === 1 ? '' : 's'} as transfers.` : 'No matching CC payments found — try editing descriptions manually to Transfer.', n ? 'info' : 'warning');
   }
 
   // ─── Command palette ───
@@ -528,7 +572,7 @@
     const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 6);
     const weekStr = weekAgo.getFullYear() + '-' + String(weekAgo.getMonth() + 1).padStart(2, '0') + '-' + String(weekAgo.getDate()).padStart(2, '0');
     const doneTasks = api.tasks.filter(t => t.status === 'done').length;
-    const weekTxns = (api.finance.transactions || []).filter(t => t.date >= weekStr && t.type === 'expense');
+    const weekTxns = (api.finance.transactions || []).filter(t => t.date >= weekStr && isSpendingExpense(t));
     const weekSpend = weekTxns.reduce((s, t) => s + t.amount, 0);
     const weekLog = (api.lifeLog || []).filter(e => e.date >= weekStr).length;
     const habitPct = api.habits.length ? Math.round(api.habits.reduce((s, h) => s + (h.completions || []).filter(d => d >= weekStr).length, 0) / (api.habits.length * 7) * 100) : 0;
@@ -595,7 +639,7 @@
       const d = new Date(today); d.setDate(d.getDate() - i);
       days.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));
     }
-    const data = days.map(d => (api.finance.transactions || []).filter(t => t.date === d && t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+    const data = days.map(d => (api.finance.transactions || []).filter(t => t.date === d && isSpendingExpense(t)).reduce((s, t) => s + t.amount, 0));
     const labels = days.map(d => { const dt = api.parseLocalDate(d); return (dt.getMonth() + 1) + '/' + dt.getDate(); });
     const ym = getFinanceMonth();
     const monthBudgets = api.finance.budgets?.[ym] || api.finance.budgets?.default || {};
@@ -740,6 +784,7 @@
     document.getElementById('undoLastImportBtn')?.addEventListener('click', () => confirmRemoveImport(true));
     document.getElementById('removeAllImportsBtn')?.addEventListener('click', () => confirmRemoveImport(false));
     document.getElementById('dedupeLifeLogImportsBtn')?.addEventListener('click', confirmDedupeLifeLog);
+    document.getElementById('markCcTransfersBtn')?.addEventListener('click', confirmMarkCcTransfers);
     window.renderBankSyncUI = renderBankSyncUI;
     window.LifeERPImport = { mergeImportedTransactions, mergeSimpleFinData, applyBalanceFromTxn, removeImportedTransactions };
   };

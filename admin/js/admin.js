@@ -2298,7 +2298,8 @@ if (document.getElementById('mainContent')) {
   // ========================================
   // Finance
   // ========================================
-  const TXN_CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Housing', 'Utilities', 'Salary', 'Interest', 'Other'];
+  const TXN_CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Housing', 'Utilities', 'Salary', 'Interest', 'Transfer', 'Other'];
+  const isSpendingExpense = (t) => t.type === 'expense';
   const ACCOUNT_TYPES = ['checking', 'savings', 'brokerage', 'cash', 'other'];
   const getTxnSortKey = (t) => [t.date, (t.sortOrder ?? t.createdAt ?? 0)];
   const sortTxns = (arr) => [...arr].sort((a, b) => {
@@ -2335,7 +2336,7 @@ if (document.getElementById('mainContent')) {
     const txns = finance.transactions || [];
     
     const income = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const expenses = txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const expenses = txns.filter(isSpendingExpense).reduce((s, t) => s + t.amount, 0);
     
     document.getElementById('totalIncome').textContent = formatCurrency(income);
     document.getElementById('totalExpenses').textContent = formatCurrency(expenses);
@@ -2475,6 +2476,7 @@ if (document.getElementById('mainContent')) {
           <select id="txnType" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
             <option value="expense" ${t.type === 'expense' ? 'selected' : ''}>Expense</option>
             <option value="income" ${t.type === 'income' ? 'selected' : ''}>Income</option>
+            <option value="transfer" ${t.type === 'transfer' ? 'selected' : ''}>Transfer (not spending)</option>
           </select></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
           <input type="text" id="txnDesc" required value="${(t.description || '').replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
@@ -2554,7 +2556,7 @@ if (document.getElementById('mainContent')) {
       <form id="txnForm" class="space-y-4">
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
           <select id="txnType" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            <option value="expense">Expense</option><option value="income">Income</option>
+            <option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer (not spending)</option>
           </select></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
           <input type="text" id="txnDesc" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
@@ -3080,14 +3082,14 @@ if (document.getElementById('mainContent')) {
       if (m) {
         if (!byMonth[m]) byMonth[m] = { income: 0, byCat: {} };
         if (t.type === 'income') byMonth[m].income += t.amount || 0;
-        else {
+        else if (isSpendingExpense(t)) {
           const c = t.category || 'Other';
           byMonth[m].byCat[c] = (byMonth[m].byCat[c] || 0) + (t.amount || 0);
         }
       }
     });
     const months = Object.keys(byMonth).sort();
-    const allCats = [...new Set(txns.filter(t => t.type === 'expense').map(t => t.category || 'Other'))].sort();
+    const allCats = [...new Set(txns.filter(isSpendingExpense).map(t => t.category || 'Other'))].sort();
     
     // Build labels and datasets
     let monthLabels, datasets;
@@ -3138,7 +3140,7 @@ if (document.getElementById('mainContent')) {
     const textColor = isDark ? '#94a3b8' : '#64748b';
 
     const byCat = {};
-    txns.filter(t => t.type === 'expense').forEach(t => {
+    txns.filter(isSpendingExpense).forEach(t => {
       const c = t.category || 'Other';
       byCat[c] = (byCat[c] || 0) + (t.amount || 0);
     });
@@ -3283,7 +3285,7 @@ if (document.getElementById('mainContent')) {
     const avgGoals = goals.length ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length) : 0;
     const maxStreak = habits.length ? Math.max(...habits.map(h => h.streak || 0)) : 0;
     const txns = finance.transactions || [];
-    const balance = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0) - txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const balance = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0) - txns.filter(isSpendingExpense).reduce((s, t) => s + t.amount, 0);
     
     document.getElementById('statTasks')?.textContent && (document.getElementById('statTasks').textContent = activeTasks);
     document.getElementById('statGoals')?.textContent && (document.getElementById('statGoals').textContent = avgGoals + '%');
