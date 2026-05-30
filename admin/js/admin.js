@@ -2300,7 +2300,19 @@ if (document.getElementById('mainContent')) {
   // ========================================
   const TXN_CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Housing', 'Utilities', 'Salary', 'Interest', 'Transfer', 'Other'];
   const isSpendingExpense = (t) => t.type === 'expense';
-  const ACCOUNT_TYPES = ['checking', 'savings', 'brokerage', 'cash', 'other'];
+  const ACCOUNT_TYPES = ['checking', 'savings', 'credit_card', 'brokerage', 'cash', 'other'];
+  const ACCOUNT_TYPE_LABELS = { checking: 'Checking', savings: 'Savings', credit_card: 'Credit card', brokerage: 'Brokerage', cash: 'Cash', other: 'Other' };
+  const isBankCashAccount = (type) => ['checking', 'savings', 'cash'].includes(type);
+  const getAccountIcon = (type) => {
+    if (type === 'brokerage') return 'chart-line';
+    if (type === 'cash') return 'money-bill';
+    if (type === 'credit_card') return 'credit-card';
+    return 'university';
+  };
+  const accountTypeOptionsHtml = (selected) => ACCOUNT_TYPES.map(t =>
+    `<option value="${t}"${selected === t ? ' selected' : ''}>${ACCOUNT_TYPE_LABELS[t]}</option>`).join('');
+  window.getAccountIcon = getAccountIcon;
+  window.isBankCashAccount = isBankCashAccount;
   const getTxnSortKey = (t) => [t.date, (t.sortOrder ?? t.createdAt ?? 0)];
   const sortTxns = (arr) => [...arr].sort((a, b) => {
     const [da, oa] = getTxnSortKey(a);
@@ -2705,11 +2717,27 @@ if (document.getElementById('mainContent')) {
     if (!container) return;
     const accounts = finance.accounts || [];
     if (accounts.length === 0) {
-      container.innerHTML = `<div class="bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 text-center text-slate-400">
+      container.innerHTML = `<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-5 mb-4 text-sm text-slate-600 dark:text-slate-300">
+        <p class="font-medium text-slate-900 dark:text-white mb-2"><i class="fas fa-lightbulb text-amber-500 mr-2"></i>Set up bank + credit card accounts</p>
+        <ul class="list-disc ml-5 space-y-1 text-xs">
+          <li><strong>Checking / savings</strong> — import OFX for income, bills, and cash flow. CC statement payments become transfers.</li>
+          <li><strong>Credit card</strong> — import OFX for individual purchases (your real spending).</li>
+        </ul></div>
+        <div class="bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 text-center text-slate-400">
         <i class="fas fa-university text-4xl mb-3 opacity-50"></i>
-        <p>No accounts yet. Add checking, savings, brokerage, etc.</p>
+        <p>No accounts yet. Add your checking and credit card accounts.</p>
       </div>`;
       return;
+    }
+    const hasBank = accounts.some(a => isBankCashAccount(a.type));
+    const hasCard = accounts.some(a => a.type === 'credit_card');
+    let html = '';
+    if (!hasBank || !hasCard) {
+      html += `<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-4 text-xs text-slate-600 dark:text-slate-300">
+        <i class="fas fa-info-circle text-amber-500 mr-1"></i>
+        ${!hasCard ? 'Add a <strong>Credit card</strong> account and import its OFX for purchase-level spending. ' : ''}
+        ${!hasBank ? 'Add a <strong>Checking</strong> account for bank cash flow (CC payments won\'t count as spending).' : ''}
+      </div>`;
     }
     const slotOrder = ensureSlotOrder();
     const sorted = sortAccounts(accounts);
@@ -2719,7 +2747,6 @@ if (document.getElementById('mainContent')) {
       if (!byInstitution[inst]) byInstitution[inst] = [];
       byInstitution[inst].push(a);
     });
-    let html = '';
     slotOrder.forEach(slotData => {
       if (slotData.startsWith('inst:')) {
         const instLabel = slotData.slice(5);
@@ -2732,15 +2759,16 @@ if (document.getElementById('mainContent')) {
           const instName = (instLabel === '__ungrouped__' ? '' : instLabel).trim();
           const displayTitle = instName && !rawName.toLowerCase().startsWith(instName.toLowerCase())
             ? `${instName} – ${rawName}` : rawName;
-          const extra = `<button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
+          const extra = `<button onclick="window.openAccountImport&&window.openAccountImport('${a.id}')" class="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg" title="Import OFX"><i class="fas fa-file-import text-sm"></i></button>
+            <button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
             <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
             <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>`;
           html += `<div class="account-slot-wrapper mb-2" data-drag="acc:${a.id}">${accountSlotHtml({
             isGroup: false,
             dragData: `acc:${a.id}`,
-            icon: a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university',
+            icon: getAccountIcon(a.type),
             title: displayTitle.replace(/</g, '&lt;'),
-            subtitle: (a.type || 'other').replace(/</g, '&lt;'),
+            subtitle: (ACCOUNT_TYPE_LABELS[a.type] || a.type || 'Other').replace(/</g, '&lt;'),
             balance: formatCurrency(bal),
             extra
           })}</div>`;
@@ -2769,15 +2797,16 @@ if (document.getElementById('mainContent')) {
         const a = accounts.find(x => x.id === accId);
         if (a) {
           const bal = parseFloat(a.currentBalance) || 0;
-          const extra = `<button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
+          const extra = `<button onclick="window.openAccountImport&&window.openAccountImport('${a.id}')" class="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg" title="Import OFX"><i class="fas fa-file-import text-sm"></i></button>
+            <button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
             <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
             <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>`;
-          html += `<div class="account-slot-wrapper" data-drag="acc:${a.id}">${accountSlotHtml({
+          html += `<div class="account-slot-wrapper mb-2" data-drag="acc:${a.id}">${accountSlotHtml({
             isGroup: false,
             dragData: `acc:${a.id}`,
-            icon: a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university',
+            icon: getAccountIcon(a.type),
             title: (a.name || 'Account').replace(/</g, '&lt;'),
-            subtitle: (a.type || 'other').replace(/</g, '&lt;'),
+            subtitle: (ACCOUNT_TYPE_LABELS[a.type] || a.type || 'Other').replace(/</g, '&lt;'),
             balance: formatCurrency(bal),
             extra
           })}</div>`;
@@ -2795,16 +2824,17 @@ if (document.getElementById('mainContent')) {
         <button onclick="moveAccountInGroup('${a.id}', 1)" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 ${isLast ? 'invisible' : ''}" title="Move down"><i class="fas fa-chevron-down text-xs"></i></button>
       </div>
       <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
-        <i class="fas fa-${a.type === 'brokerage' ? 'chart-line' : a.type === 'cash' ? 'money-bill' : 'university'} text-blue-600 dark:text-blue-400"></i>
+        <i class="fas fa-${getAccountIcon(a.type)} text-blue-600 dark:text-blue-400"></i>
       </div>
       <div class="flex-1 min-w-0">
         <p class="font-semibold text-slate-900 dark:text-white truncate">${(a.name || 'Account').replace(/</g, '&lt;')}</p>
-        <p class="text-xs text-slate-500 capitalize">${a.type || 'other'}</p>
+        <p class="text-xs text-slate-500 capitalize">${ACCOUNT_TYPE_LABELS[a.type] || a.type || 'other'}</p>
       </div>
       <div class="account-balance-col flex items-center justify-end flex-shrink-0">
         <p class="font-bold text-slate-900 dark:text-white tabular-nums">${formatCurrency(bal)}</p>
       </div>
       <div class="account-actions-col">
+        <button onclick="window.openAccountImport&&window.openAccountImport('${a.id}')" class="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg" title="Import OFX"><i class="fas fa-file-import text-sm"></i></button>
         <button onclick="editAccountModal('${a.id}')" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg" title="Edit"><i class="fas fa-pen text-sm"></i></button>
         <button onclick="updateAccountBalanceModal('${a.id}')" class="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Update balance"><i class="fas fa-sync-alt text-sm"></i></button>
         <button onclick="deleteAccount('${a.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-sm"></i></button>
@@ -2934,11 +2964,7 @@ if (document.getElementById('mainContent')) {
           <input type="text" id="accountEditName" required value="${(a.name || '').replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
           <select id="accountEditType" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            <option value="checking" ${a.type === 'checking' ? 'selected' : ''}>Checking</option>
-            <option value="savings" ${a.type === 'savings' ? 'selected' : ''}>Savings</option>
-            <option value="brokerage" ${a.type === 'brokerage' ? 'selected' : ''}>Brokerage</option>
-            <option value="cash" ${a.type === 'cash' ? 'selected' : ''}>Cash</option>
-            <option value="other" ${a.type === 'other' ? 'selected' : ''}>Other</option>
+            ${accountTypeOptionsHtml(a.type)}
           </select></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Institution (optional)</label>
           <input type="text" id="accountEditInstitution" placeholder="e.g. Fidelity, Wealthfront" value="${(a.institution || '').replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
@@ -2999,12 +3025,9 @@ if (document.getElementById('mainContent')) {
           <input type="text" id="accountName" required placeholder="e.g. Chase Checking" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
           <select id="accountType" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
-            <option value="checking">Checking</option>
-            <option value="savings">Savings</option>
-            <option value="brokerage">Brokerage</option>
-            <option value="cash">Cash</option>
-            <option value="other">Other</option>
+            ${accountTypeOptionsHtml('checking')}
           </select></div>
+        <p class="text-xs text-slate-500">Use <strong>Credit card</strong> for purchase imports; <strong>Checking</strong> for bank cash flow (statement payments = transfers, not spending).</p>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Institution (optional)</label>
           <input type="text" id="accountInstitution" placeholder="e.g. Fidelity, Wealthfront" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <p class="text-xs text-slate-500">For single-account institutions, you can name it just "Checking" — we'll display it as "Institution – Checking".</p>

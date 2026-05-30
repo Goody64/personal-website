@@ -8,6 +8,7 @@
   let api = null;
   let financeMonth = null;
   let financeSourceFilter = 'all';
+  let financeAccountFilter = 'all';
   let paletteIndex = 0;
   let paletteItems = [];
 
@@ -46,6 +47,14 @@
     return txns.filter(t => txnSource(t) === financeSourceFilter);
   };
 
+  const filterByAccount = (txns) => {
+    if (financeAccountFilter === 'all') return txns;
+    if (financeAccountFilter === 'none') return txns.filter(t => !t.accountId);
+    return txns.filter(t => t.accountId === financeAccountFilter);
+  };
+
+  const applyTxnFilters = (txns) => filterByAccount(filterBySource(txns));
+
   const isSpendingExpense = (t) => t.type === 'expense';
 
   const CC_PAYMENT_RE = /credit\s*card|card\s*payment|card\s*pymt|autopay|auto\s*pay|payment\s*thank\s*you|online\s*payment|payment\s*to\s*chase|chase\s*credit|capital\s*one|discover\s*card|amex|american\s*express|citi\s*card|apple\s*card|barclays\s*card|syncb|card\s*bill|visa\s*payment|mastercard/i;
@@ -65,7 +74,7 @@
       const ym = getFinanceMonth();
       const picker = document.getElementById('financeMonthPicker');
       if (picker && picker.value !== ym) picker.value = ym;
-      const monthTxns = filterBySource(txnsInMonth(f.transactions, ym));
+      const monthTxns = applyTxnFilters(txnsInMonth(f.transactions, ym));
       const income = monthTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
       const expenses = monthTxns.filter(isSpendingExpense).reduce((s, t) => s + t.amount, 0);
       const elInc = document.getElementById('totalIncome');
@@ -78,7 +87,7 @@
       const container = document.getElementById('transactionsContainer');
       const txns = f.transactions || [];
       if (!container) return;
-      const filtered = filterBySource(txnsInMonth(txns, ym));
+      const filtered = applyTxnFilters(txnsInMonth(txns, ym));
       if (filtered.length === 0) {
         container.innerHTML = `<div class="text-center py-8 text-slate-400"><i class="fas fa-receipt text-3xl mb-2 opacity-50"></i><p class="text-sm">${financeSourceFilter === 'all' ? 'No transactions this month' : 'No transactions for this source'}</p></div>`;
       } else {
@@ -116,6 +125,7 @@
       if (document.getElementById('accountsContainer') && api.renderAccounts) api.renderAccounts();
       renderBudgetsUI();
       renderRecurringUI();
+      populateAccountFilter();
     };
     api.renderFinance.__patched = true;
 
@@ -136,8 +146,14 @@
     });
 
     document.getElementById('addRecurringBtn')?.addEventListener('click', () => openRecurringModal());
-    document.getElementById('importTransactionsBtn')?.addEventListener('click', () => openImportModal());
+    document.getElementById('importBankBtn')?.addEventListener('click', () => openImportModal('bank'));
+    document.getElementById('importCardBtn')?.addEventListener('click', () => openImportModal('credit_card'));
     document.getElementById('importTransactionsBtnSettings')?.addEventListener('click', () => openImportModal());
+
+    document.getElementById('financeAccountFilter')?.addEventListener('change', (e) => {
+      financeAccountFilter = e.target.value;
+      api.renderFinance();
+    });
 
     processRecurringTransactions();
   }
@@ -261,7 +277,42 @@
   }
 
   // ─── OFX / CSV Import ───
-  function parseOfx(text) {
+  const classifyImportRow = (signedAmt, desc, accountType) => {
+    const amount = Math.abs(signedAmt);
+    let type = signedAmt >= 0 ? 'income' : 'expense';
+    let category = 'Other';
+    const isBank = typeof window.isBankCashAccount === 'function' && window.isBankCashAccount(accountType);
+    if (signedAmt < 0 && isBank && accountType !== 'credit_card' && looksLikeCcPayment(desc)) {
+      type = 'transfer';
+      category = 'Transfer';
+    }
+    return { type, category, amount };
+  };
+
+  function buildImportAccountSelect(selectedId, preset) {
+    const accts = api.finance.accounts || [];
+    const banks = accts.filter(a => ['checking', 'savings', 'cash'].includes(a.type));
+    const cards = accts.filter(a => a.type === 'credit_card');
+    const other = accts.filter(a => !banks.includes(a) && !cards.includes(a));
+    const opt = (a) => `<option value="${a.id}"${a.id === selectedId ? ' selected' : ''}>${(a.name || 'Account').replace(/</g, '&lt;')}</option>`;
+    let html = '<option value="">— Select account —</option>';
+    if (banks.length) html += `<optgroup label="Bank accounts">${banks.map(opt).join('')}</optgroup>`;
+    if (cards.length) html += `<optgroup label="Credit cards">${cards.map(opt).join('')}</optgroup>`;
+    if (other.length) html += `<optgroup label="Other">${other.map(opt).join('')}</optgroup>`;
+    return html;
+  }
+
+  function importHintForAccount(accountId) {
+    const a = (api.finance.accounts || []).find(x => x.id === accountId);
+    if (!a) return 'Select the account this OFX file belongs to.';
+    if (a.type === 'credit_card') return 'Credit card import: each line is a purchase and counts toward spending.';
+    if (typeof window.isBankCashAccount === 'function' && window.isBankCashAccount(a.type)) {
+      return 'Bank import: income & bills count as spending/cash flow. CC statement payments auto-mark as transfers.';
+    }
+    return 'Transactions will link to this account.';
+  }
+
+  function parseOfx(text, accountType) {
     const txns = [];
     let balances = {};
     const stmtRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
@@ -269,17 +320,12 @@
     while ((m = stmtRegex.exec(text)) !== null) {
       const block = m[1];
       const get = (tag) => { const r = new RegExp('<' + tag + '>([^<\\n]+)', 'i'); const x = block.match(r); return x ? x[1].trim() : ''; };
-      const amt = parseFloat(get('TRNAMT')) || 0;
+      const signedAmt = parseFloat(get('TRNAMT')) || 0;
       const dateRaw = get('DTPOSTED') || get('DTUSER');
       const date = dateRaw.length >= 8 ? `${dateRaw.slice(0, 4)}-${dateRaw.slice(4, 6)}-${dateRaw.slice(6, 8)}` : api.getLocalDateString();
       const desc = get('NAME') || get('MEMO') || 'Import';
-      let type = amt >= 0 ? 'income' : 'expense';
-      let category = 'Other';
-      if (amt < 0 && looksLikeCcPayment(desc)) {
-        type = 'transfer';
-        category = 'Transfer';
-      }
-      txns.push({ date, description: desc, amount: Math.abs(amt), type, category, _importHash: get('FITID') || `${date}-${amt}-${get('MEMO')}` });
+      const { type, category, amount } = classifyImportRow(signedAmt, desc, accountType);
+      txns.push({ date, description: desc, amount, type, category, signedAmt, _importHash: get('FITID') || `${date}-${signedAmt}-${get('MEMO')}` });
     }
     const balMatch = text.match(/<LEDGERBAL>[\s\S]*?<BALAMT>([^<]+)/i);
     if (balMatch) balances.ledger = parseFloat(balMatch[1]);
@@ -338,43 +384,86 @@
     return { added, skipped };
   }
 
-  function openImportModal() {
-    api.openModal('Import Transactions', `<div class="space-y-4">
-      <p class="text-sm text-slate-500">Upload OFX/QFX or CSV bank export.</p>
-      <input type="file" id="importFile" accept=".ofx,.qfx,.csv,.txt" class="w-full text-sm">
+  function openImportModal(preset, preselectAccountId) {
+    const accts = api.finance.accounts || [];
+    const defaultId = preselectAccountId
+      || (preset === 'credit_card' ? accts.find(a => a.type === 'credit_card')?.id : null)
+      || (preset === 'bank' ? accts.find(a => ['checking', 'savings', 'cash'].includes(a.type))?.id : null)
+      || '';
+    const title = preset === 'credit_card' ? 'Import credit card (OFX)' : preset === 'bank' ? 'Import bank account (OFX)' : 'Import transactions (OFX)';
+    api.openModal(title, `<div class="space-y-4">
+      <p class="text-sm text-slate-500">Download OFX/QFX from your bank or card issuer, then upload here.</p>
+      <div><label class="block text-xs font-medium text-slate-500 mb-1">Target account</label>
       <select id="importAccount" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white">
-        <option value="">No account link</option>
-        ${(api.finance.accounts || []).map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
-      </select>
+        ${buildImportAccountSelect(defaultId, preset)}
+      </select></div>
+      <p id="importHint" class="text-xs text-blue-600 dark:text-blue-400">${importHintForAccount(defaultId)}</p>
+      <input type="file" id="importFile" accept=".ofx,.qfx,.csv,.txt" class="w-full text-sm">
       <div id="importPreview" class="max-h-40 overflow-y-auto text-xs"></div>
       <button type="button" id="importConfirmBtn" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg" disabled>Import</button></div>`);
-    let parsedRows = [], parsedBalances = {};
-    document.getElementById('importFile').addEventListener('change', async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const text = await file.text();
-      const lower = file.name.toLowerCase();
-      if (lower.endsWith('.csv')) parsedRows = parseCsv(text);
-      else parsedRows = parseOfx(text).txns, parsedBalances = parseOfx(text).balances;
+    let parsedRows = [], parsedBalances = {}, rawOfxText = '';
+    const refreshPreview = () => {
+      const acctId = document.getElementById('importAccount')?.value;
+      const acct = accts.find(a => a.id === acctId);
+      document.getElementById('importHint').textContent = importHintForAccount(acctId);
+      if (rawOfxText && !rawOfxText.toLowerCase().includes('.csv')) {
+        parsedRows = parseOfx(rawOfxText, acct?.type).txns;
+      }
+      if (!parsedRows.length) {
+        document.getElementById('importPreview').innerHTML = acctId ? '<p class="text-slate-400">Choose a file to preview</p>' : '<p class="text-amber-600">Select an account first</p>';
+        document.getElementById('importConfirmBtn').disabled = true;
+        return;
+      }
       document.getElementById('importPreview').innerHTML = `<p class="font-medium mb-1">${parsedRows.length} transactions found</p>` +
-        parsedRows.slice(0, 8).map(r => `<div class="py-1 border-b border-slate-100 dark:border-slate-700">${r.date} · ${r.description} · ${api.formatCurrency(r.amount)}</div>`).join('') +
+        parsedRows.slice(0, 8).map(r => `<div class="py-1 border-b border-slate-100 dark:border-slate-700">${r.date} · ${r.description} · ${r.type === 'transfer' ? '↔' : ''}${api.formatCurrency(r.amount)}${r.type === 'transfer' ? ' (transfer)' : ''}</div>`).join('') +
         (parsedRows.length > 8 ? `<p class="text-slate-400 mt-1">+${parsedRows.length - 8} more</p>` : '') +
         (() => {
           const max = Math.max(...parsedRows.map(r => r.amount || 0), 0);
           const totalExp = parsedRows.filter(isSpendingExpense).reduce((s, r) => s + r.amount, 0);
           if (max > 100000 || totalExp > 500000) {
-            return `<p class="text-red-600 dark:text-red-400 font-medium mt-2"><i class="fas fa-exclamation-triangle mr-1"></i>Amounts look wrong (max ${api.formatCurrency(max)}). Check the preview before importing — your CSV columns may not match.</p>`;
+            return `<p class="text-red-600 dark:text-red-400 font-medium mt-2"><i class="fas fa-exclamation-triangle mr-1"></i>Amounts look wrong (max ${api.formatCurrency(max)}). Check the preview before importing.</p>`;
           }
           return '';
         })();
-      document.getElementById('importConfirmBtn').disabled = parsedRows.length === 0;
+      document.getElementById('importConfirmBtn').disabled = !acctId;
+    };
+    document.getElementById('importAccount')?.addEventListener('change', refreshPreview);
+    document.getElementById('importFile').addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      rawOfxText = await file.text();
+      const lower = file.name.toLowerCase();
+      const acct = accts.find(a => a.id === document.getElementById('importAccount')?.value);
+      if (lower.endsWith('.csv')) parsedRows = parseCsv(rawOfxText);
+      else { const p = parseOfx(rawOfxText, acct?.type); parsedRows = p.txns; parsedBalances = p.balances; }
+      refreshPreview();
     });
+    refreshPreview();
     document.getElementById('importConfirmBtn').addEventListener('click', () => {
       const acctId = document.getElementById('importAccount').value || null;
+      if (!acctId) return;
       const { added, skipped } = mergeImportedTransactions(parsedRows, acctId, parsedBalances);
       api.closeModal();
       api.addNotification?.('Import complete', `Added ${added}, skipped ${skipped} duplicates`, 'info');
+      populateAccountFilter();
     });
+  }
+
+  window.openAccountImport = (accountId) => {
+    const a = (api.finance.accounts || []).find(x => x.id === accountId);
+    const preset = a?.type === 'credit_card' ? 'credit_card' : 'bank';
+    openImportModal(preset, accountId);
+  };
+
+  function populateAccountFilter() {
+    const sel = document.getElementById('financeAccountFilter');
+    if (!sel) return;
+    const cur = financeAccountFilter;
+    sel.innerHTML = '<option value="all">All accounts</option><option value="none">Unlinked</option>' +
+      (api.finance.accounts || []).map(a =>
+        `<option value="${a.id}">${(a.name || 'Account').replace(/</g, '&lt;')}${a.type === 'credit_card' ? ' (card)' : ''}</option>`
+      ).join('');
+    if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
   }
 
   /** Remove OFX/CSV imports. Keeps manual entries and SimpleFIN sync (_sfinId). */
@@ -772,6 +861,7 @@
         return origGoals();
       };
     }
+    populateAccountFilter();
     renderBankSyncUI();
     document.addEventListener('keydown', (e) => {
       const tag = (e.target?.tagName || '').toLowerCase();
