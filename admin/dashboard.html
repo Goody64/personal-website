@@ -8,6 +8,12 @@
   
   <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
   <link rel="icon" type="image/x-icon" href="../assets/favicon.ico">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="../assets/icon-192.png">
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Life ERP">
   
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -298,6 +304,17 @@
             </div>
           </div>
           
+          <!-- Weekly Review -->
+          <div id="weeklyReviewCard" class="mb-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-5 text-white cursor-pointer hover:shadow-lg hover:shadow-blue-500/25 transition-all group">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="font-semibold flex items-center gap-2"><i class="fas fa-chart-pie"></i> Weekly Review</h3>
+                <p class="text-sm text-blue-100 mt-1">See your last 7 days at a glance</p>
+              </div>
+              <button type="button" id="weeklyReviewBtn" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-medium transition-colors">Open review</button>
+            </div>
+          </div>
+
           <!-- Widgets -->
           <div class="grid lg:grid-cols-2 gap-6">
             <!-- Today's Tasks -->
@@ -340,9 +357,21 @@
             </div>
           </div>
 
+          <!-- Activity Heatmap -->
+          <div class="mt-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+            <h3 class="font-semibold text-slate-900 dark:text-white text-sm mb-3 flex items-center gap-2"><i class="fas fa-th text-green-500"></i> Activity heatmap <span class="text-xs font-normal text-slate-400">(last ~6 months)</span></h3>
+            <div id="activityHeatmap" class="min-h-[80px]"></div>
+          </div>
+
           <!-- Insights -->
           <div class="mt-6">
             <h2 class="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2"><i class="fas fa-chart-pie text-blue-500"></i>Insights</h2>
+            <div class="grid lg:grid-cols-2 gap-6 mb-6">
+              <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+                <h3 class="font-semibold text-slate-900 dark:text-white text-sm mb-3">Daily spending <span class="text-xs font-normal text-slate-400">(last 30 days)</span></h3>
+                <div class="h-56"><canvas id="chartSpendingTrend"></canvas></div>
+              </div>
+            </div>
             <div class="grid lg:grid-cols-3 gap-6">
               <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
                 <h3 class="font-semibold text-slate-900 dark:text-white text-sm mb-3">Spending by category <span class="text-xs font-normal text-slate-400">(last 30 days)</span></h3>
@@ -609,6 +638,20 @@
         <section id="finance" class="content-section hidden">
           <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
             <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Finance</h1>
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                <span>Month</span>
+                <input type="month" id="financeMonthPicker" class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+              </label>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+                <input type="checkbox" id="financeAutoBalance" class="rounded border-slate-300">
+                <span>Auto-update balances</span>
+              </label>
+              <button type="button" id="importTransactionsBtn" class="px-4 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all flex items-center gap-2">
+                <i class="fas fa-file-import"></i>
+                <span>Import</span>
+              </button>
+            </div>
           </div>
           
           <!-- Finance Sub-nav -->
@@ -689,9 +732,22 @@
             </div>
           </div>
           
+          <!-- Recurring transactions -->
+          <div class="mb-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2"><i class="fas fa-redo text-blue-500"></i> Recurring transactions</h3>
+              <button type="button" id="addRecurringBtn" class="px-3 py-1.5 text-sm gradient-bg text-white rounded-lg">Add recurring</button>
+            </div>
+            <div id="recurringContainer"></div>
+          </div>
+
           <!-- Analytics Panel -->
           <div id="financePanelAnalytics" class="finance-panel hidden">
             <h3 class="font-semibold text-slate-900 dark:text-white mb-4">Money Over Time</h3>
+            <div class="mb-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+              <h4 class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-3">Monthly budgets</h4>
+              <div id="budgetsContainer"></div>
+            </div>
             <div id="analyticsCharts" class="space-y-6">
               <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
                 <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -879,6 +935,17 @@
                 <p class="text-slate-500 dark:text-slate-400">Loading...</p>
               </div>
             </div>
+
+            <!-- Bank Sync (SimpleFIN) -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+              <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700">
+                <i class="fas fa-university text-green-500"></i>
+                Bank Sync (SimpleFIN)
+              </h3>
+              <div id="bankSyncStatus" class="text-sm">
+                <p class="text-slate-500 dark:text-slate-400">Loading...</p>
+              </div>
+            </div>
             
             <!-- Data -->
             <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
@@ -894,6 +961,15 @@
                   </div>
                   <button id="exportData" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
                     <i class="fas fa-download mr-2"></i>JSON
+                  </button>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300">Import transactions</p>
+                    <p class="text-xs text-slate-500">Upload OFX/QFX or CSV bank export</p>
+                  </div>
+                  <button type="button" id="importTransactionsBtnSettings" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                    <i class="fas fa-file-import mr-2"></i>Import
                   </button>
                 </div>
                 <div class="flex items-center justify-between">
@@ -971,6 +1047,14 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="js/dataService.js"></script>
+  <script src="js/lifeerp-extensions.js"></script>
   <script src="js/admin.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>

@@ -82,3 +82,50 @@ Supabase sends confirmation emails by default. **Turn this off** or you'll hit r
 - Sign up or sign in from the dashboard header ("Sign in to sync")
 - Local data is automatically imported to the cloud on first sign-in
 - Data syncs across devices when you sign in with the same account
+
+---
+
+## Optional: Live bank sync (SimpleFIN)
+
+Live bank sync keeps your SimpleFIN **Access URL** on the server (never in the browser). You need cloud sync enabled and a [SimpleFIN Bridge](https://beta-bridge.simplefin.org/) subscription (~$1.50/mo).
+
+### 1. Run the bank_links migration
+
+In **SQL Editor**, run the `bank_links` section from `SUPABASE_SETUP.sql` (or re-run the full file if this is a fresh setup).
+
+### 2. Install Supabase CLI (one time)
+
+```bash
+brew install supabase/tap/supabase   # macOS
+# or: npm i -g supabase
+supabase login
+supabase link --project-ref YOUR_PROJECT_ID
+```
+
+### 3. Deploy Edge Functions (one time per update)
+
+From the repo root:
+
+```bash
+supabase functions deploy bank-link bank-sync bank-unlink
+```
+
+Supabase auto-injects `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` — no extra secrets needed.
+
+### 4. Connect in Life ERP
+
+1. Sign in to cloud sync in the dashboard
+2. Go to **Settings → Bank Sync (SimpleFIN)**
+3. Create a setup token at [SimpleFIN Bridge](https://beta-bridge.simplefin.org/simplefin/create)
+4. Paste the token → **Connect bank** → **Sync now**
+
+**Always-free alternative:** use **Import** (OFX/QFX/CSV) under Finance or Settings — no backend required.
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| "Sign in to cloud sync first" | Log in with Supabase auth |
+| "Unauthorized" on bank functions | Redeploy functions; ensure JWT is sent (signed-in session) |
+| "No bank connected" | Run Connect bank with a fresh setup token (tokens are one-time use) |
+| CORS errors | Edge Functions include CORS headers; redeploy if you changed them |

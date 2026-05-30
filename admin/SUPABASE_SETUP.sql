@@ -28,3 +28,14 @@ CREATE POLICY "Users can update own data" ON user_data
 -- Users can delete their own data
 CREATE POLICY "Users can delete own data" ON user_data
   FOR DELETE USING (auth.uid() = user_id);
+
+-- Bank links (SimpleFIN Access URLs — server-side only, no client policies)
+CREATE TABLE IF NOT EXISTS bank_links (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  access_url TEXT NOT NULL,
+  last_synced TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE bank_links ENABLE ROW LEVEL SECURITY;
+-- No policies: only service-role Edge Functions can read/write (keeps Access URL out of browser)

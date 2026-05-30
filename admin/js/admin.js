@@ -633,7 +633,7 @@ if (document.getElementById('mainContent')) {
     if (id === 'library') renderLibrary();
     if (id === 'finance') renderFinance();
     if (id === 'health') renderHealthSection();
-    if (id === 'settings') { updateCloudSyncStatus(); updateProfileSection(); }
+    if (id === 'settings') { updateCloudSyncStatus(); updateProfileSection(); if (typeof window.renderBankSyncUI === 'function') window.renderBankSyncUI(); }
   };
   window.showSection = showSection;
   
@@ -1848,12 +1848,19 @@ if (document.getElementById('mainContent')) {
           </select></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date</label>
           <input type="date" id="taskDue" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Recurrence (optional)</label>
+          <select id="taskRecurrence" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <option value="">None</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option>
+          </select></div>
         <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add Task</button>
       </form>
     `);
     document.getElementById('taskForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      tasks.push({ id: generateId(), title: document.getElementById('taskTitle').value, description: document.getElementById('taskDesc').value, status: document.getElementById('taskStatus').value, dueDate: document.getElementById('taskDue').value, createdAt: Date.now() });
+      const rec = document.getElementById('taskRecurrence')?.value || '';
+      const task = { id: generateId(), title: document.getElementById('taskTitle').value, description: document.getElementById('taskDesc').value, status: document.getElementById('taskStatus').value, dueDate: document.getElementById('taskDue').value, createdAt: Date.now() };
+      if (rec) task.recurrence = rec;
+      tasks.push(task);
       saveData('tasks', tasks); renderTasks(); updateStats(); closeModal();
     });
   };
@@ -1908,12 +1915,23 @@ if (document.getElementById('mainContent')) {
           </select></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
           <textarea id="goalDesc" rows="2" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Link to habit (auto-progress)</label>
+          <select id="goalLinkedHabit" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <option value="">None — manual progress</option>
+            ${habits.map(h => `<option value="${h.id}">${h.name}</option>`).join('')}
+          </select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Target streak (days)</label>
+          <input type="number" id="goalTargetStreak" min="1" value="30" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add Goal</button>
       </form>
     `);
     document.getElementById('goalForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      goals.push({ id: generateId(), title: document.getElementById('goalTitle').value, category: document.getElementById('goalCategory').value, description: document.getElementById('goalDesc').value, progress: 0, createdAt: Date.now() });
+      const linkedHabitId = document.getElementById('goalLinkedHabit')?.value || '';
+      const targetStreak = parseInt(document.getElementById('goalTargetStreak')?.value, 10) || 30;
+      const goal = { id: generateId(), title: document.getElementById('goalTitle').value, category: document.getElementById('goalCategory').value, description: document.getElementById('goalDesc').value, progress: 0, createdAt: Date.now() };
+      if (linkedHabitId) { goal.linkedHabitId = linkedHabitId; goal.targetStreak = targetStreak; }
+      goals.push(goal);
       saveData('goals', goals); renderGoals(); closeModal();
     });
   };
@@ -2147,7 +2165,7 @@ if (document.getElementById('mainContent')) {
       closeModal();
     });
   };
-  document.getElementById('addHabitBtn')?.addEventListener('click', addHabitModal);
+  document.getElementById('addHabitBtn')?.addEventListener('click', window.addHabitModal);
   
   // ========================================
   // Chores
@@ -2275,7 +2293,7 @@ if (document.getElementById('mainContent')) {
       closeModal();
     });
   };
-  document.getElementById('addChoreBtn')?.addEventListener('click', addChoreModal);
+  document.getElementById('addChoreBtn')?.addEventListener('click', window.addChoreModal);
   
   // ========================================
   // Finance
@@ -2479,6 +2497,7 @@ if (document.getElementById('mainContent')) {
       if (editId) {
         const tx = finance.transactions.find(x => x.id === editId);
         if (tx) {
+          window.LifeERPImport?.applyBalanceFromTxn?.({ ...tx }, -1);
           tx.type = document.getElementById('txnType').value;
           tx.description = document.getElementById('txnDesc').value;
           tx.amount = parseAmount(document.getElementById('txnAmount').value);
@@ -2486,6 +2505,7 @@ if (document.getElementById('mainContent')) {
           tx.accountId = document.getElementById('txnAccount')?.value || null;
           tx.receiptUrl = (document.getElementById('txnReceiptUrl')?.value || '').trim() || null;
           tx.date = document.getElementById('txnDate').value;
+          window.LifeERPImport?.applyBalanceFromTxn?.(tx, 1);
           // Keep a linked Life Log purchase/meal in sync (avoid drift)
           if (tx._lifeLogEntryId) {
             const le = lifeLog.find(en => en.id === tx._lifeLogEntryId);
@@ -2509,6 +2529,7 @@ if (document.getElementById('mainContent')) {
 
   window.deleteTxn = (id) => {
     const tx = finance.transactions.find(t => t.id === id);
+    if (tx) window.LifeERPImport?.applyBalanceFromTxn?.(tx, -1);
     // If this transaction came from a Life Log entry, unlink it so editing the
     // purchase later doesn't silently recreate a deleted transaction.
     if (tx && tx._lifeLogEntryId) {
@@ -2556,7 +2577,7 @@ if (document.getElementById('mainContent')) {
       const sameDay = (finance.transactions || []).filter(t => (t.date || '') === date);
       const maxOrder = sameDay.length ? Math.max(...sameDay.map(t => t.sortOrder ?? t.createdAt ?? 0)) : -1;
       finance.transactions = finance.transactions || [];
-      finance.transactions.push({
+      const newTxn = {
         id: generateId(),
         type: document.getElementById('txnType').value,
         description: document.getElementById('txnDesc').value,
@@ -2567,7 +2588,9 @@ if (document.getElementById('mainContent')) {
         date,
         sortOrder: maxOrder + 1,
         createdAt: Date.now()
-      });
+      };
+      finance.transactions.push(newTxn);
+      window.LifeERPImport?.applyBalanceFromTxn?.(newTxn, 1);
       saveData('finance', finance);
       renderFinance();
       closeModal();
@@ -3857,6 +3880,26 @@ if (document.getElementById('mainContent')) {
   updateStats();
   renderDashboardWidgets();
   generateReminders();
+
+  // Extensions module (finance depth, import, palette, bank sync, etc.)
+  if (typeof window.initLifeERPExtensions === 'function') {
+    window.initLifeERPExtensions({
+      get finance() { return finance; },
+      get tasks() { return tasks; },
+      get goals() { return goals; },
+      get habits() { return habits; },
+      get chores() { return chores; },
+      get lifeLog() { return lifeLog; },
+      get journal() { return journal; },
+      saveData, openModal, closeModal, showSection, openLogModal,
+      renderFinance, renderAccounts, renderAnalytics, renderDashboardWidgets, renderGoals, updateStats,
+      addTaskModal, addHabitModal: window.addHabitModal, addChoreModal: window.addChoreModal,
+      attachTxnDragListeners, sortTxns, buildSearchIndex, runGlobalSearch,
+      formatCurrency, formatDate, formatDateShort, getLocalDateString, parseLocalDate,
+      generateId, parseAmount, addNotification, calculateStreak,
+      TXN_CATEGORIES
+    });
+  }
   
   // App ready: hide loading, show main content, restore section from hash
   const loadingScreen = document.getElementById('loadingScreen');
