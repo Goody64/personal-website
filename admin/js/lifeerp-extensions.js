@@ -263,6 +263,9 @@
 
   function mergeImportedTransactions(rows, accountId, balances) {
     api.finance.transactions = api.finance.transactions || [];
+    api.finance.settings = api.finance.settings || {};
+    const batchAt = Date.now();
+    api.finance.settings.lastImportBatchAt = batchAt;
     let added = 0, skipped = 0;
     rows.forEach(row => {
       const hash = row._importHash || `${row.date}-${row.amount}-${row.description}`;
@@ -273,7 +276,7 @@
       api.finance.transactions.push({
         id: api.generateId(), type: row.type, description: row.description, amount: row.amount,
         category: row.category || 'Other', accountId: accountId || null, date: row.date,
-        createdAt: Date.now(), _importHash: hash
+        createdAt: Date.now(), _importHash: hash, _importBatchAt: batchAt
       });
       added++;
     });
@@ -311,7 +314,15 @@
       else parsedRows = parseOfx(text).txns, parsedBalances = parseOfx(text).balances;
       document.getElementById('importPreview').innerHTML = `<p class="font-medium mb-1">${parsedRows.length} transactions found</p>` +
         parsedRows.slice(0, 8).map(r => `<div class="py-1 border-b border-slate-100 dark:border-slate-700">${r.date} · ${r.description} · ${api.formatCurrency(r.amount)}</div>`).join('') +
-        (parsedRows.length > 8 ? `<p class="text-slate-400 mt-1">+${parsedRows.length - 8} more</p>` : '');
+        (parsedRows.length > 8 ? `<p class="text-slate-400 mt-1">+${parsedRows.length - 8} more</p>` : '') +
+        (() => {
+          const max = Math.max(...parsedRows.map(r => r.amount || 0), 0);
+          const totalExp = parsedRows.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+          if (max > 100000 || totalExp > 500000) {
+            return `<p class="text-red-600 dark:text-red-400 font-medium mt-2"><i class="fas fa-exclamation-triangle mr-1"></i>Amounts look wrong (max ${api.formatCurrency(max)}). Check the preview before importing — your CSV columns may not match.</p>`;
+          }
+          return '';
+        })();
       document.getElementById('importConfirmBtn').disabled = parsedRows.length === 0;
     });
     document.getElementById('importConfirmBtn').addEventListener('click', () => {
@@ -320,6 +331,40 @@
       api.closeModal();
       api.addNotification?.('Import complete', `Added ${added}, skipped ${skipped} duplicates`, 'info');
     });
+  }
+
+  /** Remove OFX/CSV imports. Keeps manual entries and SimpleFIN sync (_sfinId). */
+  function removeImportedTransactions(onlyLastBatch = true) {
+    const f = api.finance;
+    const batchAt = f.settings?.lastImportBatchAt;
+    const hasBatch = batchAt && (f.transactions || []).some(t => t._importBatchAt === batchAt);
+    const cutoff = Date.now() - 24 * 3600 * 1000;
+    const before = (f.transactions || []).length;
+    f.transactions = (f.transactions || []).filter(t => {
+      if (t._sfinId) return true;
+      if (!t._importHash) return true;
+      if (onlyLastBatch) {
+        if (hasBatch) return t._importBatchAt !== batchAt;
+        return !(t.createdAt && t.createdAt >= cutoff);
+      }
+      return false;
+    });
+    const removed = before - f.transactions.length;
+    api.saveData('finance', f);
+    api.renderFinance();
+    api.updateStats?.();
+    api.renderDashboardWidgets?.();
+    return removed;
+  }
+
+  function confirmRemoveImport(onlyLastBatch) {
+    const label = onlyLastBatch ? 'Undo last import' : 'Remove all file imports';
+    const msg = onlyLastBatch
+      ? 'Remove all transactions from your most recent OFX/CSV import? Manual entries and bank sync are kept.'
+      : 'Remove ALL transactions from OFX/CSV imports? Manual entries and bank sync are kept.';
+    if (!confirm(msg)) return;
+    const n = removeImportedTransactions(onlyLastBatch);
+    api.addNotification?.(label, `Removed ${n} imported transaction${n === 1 ? '' : 's'}.`, n ? 'info' : 'warning');
   }
 
   // ─── Command palette ───
@@ -640,8 +685,9 @@
     });
     document.getElementById('weeklyReviewBtn')?.addEventListener('click', openWeeklyReview);
     document.getElementById('weeklyReviewCard')?.addEventListener('click', openWeeklyReview);
+    document.getElementById('undoLastImportBtn')?.addEventListener('click', () => confirmRemoveImport(true));
+    document.getElementById('removeAllImportsBtn')?.addEventListener('click', () => confirmRemoveImport(false));
     window.renderBankSyncUI = renderBankSyncUI;
-    // Expose merge for bank sync reuse
-    window.LifeERPImport = { mergeImportedTransactions, mergeSimpleFinData, applyBalanceFromTxn };
+    window.LifeERPImport = { mergeImportedTransactions, mergeSimpleFinData, applyBalanceFromTxn, removeImportedTransactions };
   };
 })();

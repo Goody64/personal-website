@@ -99,16 +99,26 @@ In **SQL Editor**, run the `bank_links` section from `SUPABASE_SETUP.sql` (or re
 brew install supabase/tap/supabase   # macOS
 # or: npm i -g supabase
 supabase login
-supabase link --project-ref YOUR_PROJECT_ID
 ```
 
-### 3. Deploy Edge Functions (one time per update)
+### 3. Link and deploy from the **repo root**
 
-From the repo root:
+The deploy command must run where `supabase/functions/` exists (not from `~`).
 
 ```bash
+cd ~/personal-website   # or wherever you cloned the repo
+
+# One-time: link this folder to your Supabase project (writes project ref into supabase/config.toml)
+supabase link --project-ref YOUR_PROJECT_ID
+
+# Confirm the function files are visible
+ls supabase/functions/bank-link/index.ts
+
+# Deploy (Docker warning is OK — remote deploy does not need Docker)
 supabase functions deploy bank-link bank-sync bank-unlink
 ```
+
+Your project ref is the ID in the Supabase dashboard URL: `https://supabase.com/dashboard/project/<PROJECT_REF>`.
 
 Supabase auto-injects `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` — no extra secrets needed.
 
@@ -125,6 +135,8 @@ Supabase auto-injects `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE
 
 | Issue | Fix |
 |-------|-----|
+| `no such file or directory` for `supabase/functions/...` | Run deploy from the **repo root** (`cd ~/personal-website`), not `~`. Run `git pull` if the folder is missing. |
+| `Docker is not running` | Harmless for **remote** deploy; ignore unless you use local `supabase start`. |
 | "Sign in to cloud sync first" | Log in with Supabase auth |
 | "Unauthorized" on bank functions | Redeploy functions; ensure JWT is sent (signed-in session) |
 | "No bank connected" | Run Connect bank with a fresh setup token (tokens are one-time use) |
