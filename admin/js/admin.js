@@ -511,6 +511,26 @@ if (document.getElementById('mainContent')) {
     updateNotifUI();
   };
   window.addNotification = addNotification;
+  // Generate reminder notifications (deduped per day via reminderKey)
+  const generateReminders = () => {
+    const today = getLocalDateString();
+    let list = getNotifications();
+    const existingKeys = new Set(list.map(n => n.reminderKey).filter(Boolean));
+    let added = false;
+    const push = (key, title, message, type) => {
+      if (existingKeys.has(key)) return;
+      list.unshift({ id: generateId(), title, message, type, read: false, createdAt: Date.now(), reminderKey: key });
+      existingKeys.add(key);
+      added = true;
+    };
+    tasks.filter(t => t.status !== 'done' && t.dueDate && t.dueDate < today)
+      .forEach(t => push('task-overdue-' + t.id + '-' + today, 'Task overdue', `${t.title} was due ${formatDateShort(t.dueDate)}`, 'warning'));
+    tasks.filter(t => t.status !== 'done' && t.dueDate === today)
+      .forEach(t => push('task-due-' + t.id + '-' + today, 'Task due today', t.title, 'info'));
+    (typeof chores !== 'undefined' ? chores : []).filter(c => isChoreDue(c) && !isChoreDoneToday(c))
+      .forEach(c => push('chore-due-' + c.id + '-' + today, 'Chore due', `${c.name} (${c.frequency})`, 'info'));
+    if (added) { saveNotifications(list.slice(0, 50)); updateNotifUI(); }
+  };
   const updateNotifUI = () => {
     const list = getNotifications();
     const unread = list.filter(n => !n.read).length;
@@ -560,7 +580,21 @@ if (document.getElementById('mainContent')) {
     document.getElementById('mainContent').classList.toggle('ml-64');
     document.getElementById('mainContent').classList.toggle('ml-20');
   });
-  document.getElementById('mobileMenuBtn')?.addEventListener('click', () => sidebar.classList.toggle('-translate-x-full'));
+  // Mobile sidebar with backdrop
+  let sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  if (!sidebarBackdrop) {
+    sidebarBackdrop = document.createElement('div');
+    sidebarBackdrop.id = 'sidebarBackdrop';
+    sidebarBackdrop.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm z-40 hidden lg:hidden transition-opacity';
+    document.body.appendChild(sidebarBackdrop);
+  }
+  const closeMobileSidebar = () => { sidebar.classList.add('-translate-x-full'); sidebarBackdrop.classList.add('hidden'); };
+  document.getElementById('mobileMenuBtn')?.addEventListener('click', () => {
+    const willOpen = sidebar.classList.contains('-translate-x-full');
+    sidebar.classList.toggle('-translate-x-full');
+    sidebarBackdrop.classList.toggle('hidden', !willOpen);
+  });
+  sidebarBackdrop.addEventListener('click', closeMobileSidebar);
   
   const SECTION_TITLES = {
     dashboard: 'Dashboard',
@@ -578,9 +612,12 @@ if (document.getElementById('mainContent')) {
   const showSection = (id, updateHash = true) => {
     document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden'));
     document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active', 'bg-blue-600'));
-    document.getElementById(id)?.classList.remove('hidden');
+    const shown = document.getElementById(id);
+    shown?.classList.remove('hidden');
+    // Re-trigger entrance animation
+    if (shown) { shown.classList.remove('animate-in'); void shown.offsetWidth; shown.classList.add('animate-in'); }
     document.querySelector(`[data-section="${id}"]`)?.classList.add('active', 'bg-blue-600');
-    if (window.innerWidth < 1024) sidebar.classList.add('-translate-x-full');
+    if (window.innerWidth < 1024) { sidebar.classList.add('-translate-x-full'); document.getElementById('sidebarBackdrop')?.classList.add('hidden'); }
     
     // Update URL hash (without triggering hashchange loop)
     if (updateHash && window.location.hash !== '#' + id) {
@@ -590,6 +627,7 @@ if (document.getElementById('mainContent')) {
     document.title = (SECTION_TITLES[id] || 'Dashboard') + ' | Life ERP';
     
     // Render section-specific content
+    if (id === 'dashboard') renderDashboardWidgets();
     if (id === 'chores') renderChores();
     if (id === 'lifelog') { renderCalendar(); renderDayDetail(); }
     if (id === 'library') renderLibrary();
@@ -3232,6 +3270,267 @@ if (document.getElementById('mainContent')) {
   };
   
   // ========================================
+  // Dashboard widgets (Today + Recent Activity)
+  // ========================================
+  const renderTodayWidget = () => {
+    const el = document.getElementById('todayTasksWidget');
+    if (!el) return;
+    const today = getLocalDateString();
+    const items = [];
+    tasks.filter(t => t.status !== 'done' && t.dueDate && t.dueDate <= today)
+      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
+      .forEach(t => items.push({
+        kind: 'task', id: t.id, label: t.title,
+        sub: t.dueDate === today ? 'Due today' : 'Overdue · ' + formatDateShort(t.dueDate),
+        overdue: t.dueDate < today, icon: 'fa-clipboard-check', color: '#3b82f6'
+      }));
+    habits.filter(h => !isHabitDoneToday(h)).forEach(h => items.push({
+      kind: 'habit', id: h.id, label: h.name, sub: (h.frequency || 'Daily') + ' habit',
+      icon: 'fa-sync-alt', color: h.color || '#3b82f6'
+    }));
+    chores.filter(c => isChoreDue(c) && !isChoreDoneToday(c)).forEach(c => items.push({
+      kind: 'chore', id: c.id, label: c.name, sub: (c.frequency || '') + ' chore',
+      icon: 'fa-broom', color: c.color || '#0ea5e9'
+    }));
+    if (items.length === 0) {
+      el.innerHTML = `<div class="text-center py-8 text-slate-400">
+        <i class="fas fa-mug-hot text-4xl mb-3 opacity-50"></i>
+        <p>You're all caught up for today!</p>
+      </div>`;
+      return;
+    }
+    el.innerHTML = `<div class="space-y-2">` + items.map(it => {
+      const action = it.kind === 'task'
+        ? `completeTaskFromDashboard('${it.id}')`
+        : it.kind === 'habit' ? `toggleHabit('${it.id}'); renderDashboardWidgets();`
+          : `toggleChore('${it.id}'); renderDashboardWidgets();`;
+      const badge = it.kind === 'task' && it.overdue ? `<span class="text-[10px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300 rounded flex-shrink-0">Overdue</span>` : '';
+      return `<div class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+        <button onclick="${action}" class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 hover:bg-green-500 hover:text-white transition-colors" style="background: ${it.color}20; color: ${it.color}" title="Mark done">
+          <i class="fas ${it.icon} text-sm"></i>
+        </button>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-slate-900 dark:text-white truncate">${(it.label || '').replace(/</g, '&lt;')}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">${it.sub}</p>
+        </div>
+        ${badge}
+      </div>`;
+    }).join('') + `</div>`;
+  };
+  
+  const renderActivityWidget = () => {
+    const el = document.getElementById('activityWidget');
+    if (!el) return;
+    const events = [];
+    lifeLog.forEach(e => {
+      const t = ACTIVITY_TYPES[e.type];
+      const mainField = t?.fields?.[0]?.key;
+      const label = e.type === 'work' ? (e.data?.title || 'Work session') : (e.data?.[mainField] || t?.name || 'Entry');
+      events.push({ ts: e.createdAt || (e.date ? parseLocalDate(e.date).getTime() : 0), date: e.date, icon: t?.icon || 'fa-circle', color: t?.color || '#64748b', title: `${t?.name || 'Logged'}: ${label}` });
+    });
+    (finance.transactions || []).forEach(tx => {
+      events.push({ ts: tx.createdAt || (tx.date ? parseLocalDate(tx.date).getTime() : 0), date: tx.date, icon: tx.type === 'income' ? 'fa-arrow-down' : 'fa-arrow-up', color: tx.type === 'income' ? '#10b981' : '#ef4444', title: `${tx.type === 'income' ? 'Income' : 'Expense'}: ${tx.description || tx.category || ''} (${formatCurrency(tx.amount || 0)})` });
+    });
+    tasks.filter(t => t.status === 'done').forEach(t => events.push({ ts: t.createdAt || 0, date: null, icon: 'fa-check-circle', color: '#22c55e', title: `Task done: ${t.title}` }));
+    journal.forEach(j => events.push({ ts: j.createdAt || (j.date ? parseLocalDate(j.date).getTime() : 0), date: j.date, icon: 'fa-book-open', color: '#a855f7', title: `Journal: ${j.title || 'Entry'}` }));
+    events.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    const top = events.slice(0, 6);
+    if (top.length === 0) {
+      el.innerHTML = `<div class="text-center py-8 text-slate-400"><i class="fas fa-history text-4xl mb-3 opacity-50"></i><p>No activity yet</p></div>`;
+      return;
+    }
+    el.innerHTML = `<div class="space-y-2">` + top.map(ev => {
+      const when = ev.date ? formatDateShort(ev.date) : (ev.ts ? formatDateShort(new Date(ev.ts)) : '');
+      return `<div class="flex items-center gap-3 p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+        <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${ev.color}20; color: ${ev.color}"><i class="fas ${ev.icon} text-sm"></i></div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-slate-900 dark:text-white truncate">${(ev.title || '').replace(/</g, '&lt;')}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">${when}</p>
+        </div>
+      </div>`;
+    }).join('') + `</div>`;
+  };
+  
+  // ========================================
+  // Dashboard insights (read-only charts)
+  // ========================================
+  let chartSpending = null;
+  let chartActivity = null;
+  const renderInsights = () => {
+    if (typeof Chart === 'undefined') return;
+    const isDark = document.documentElement.classList.contains('dark');
+    const today = parseLocalDate(getLocalDateString());
+    
+    // Spending by category (last 30 days, expenses)
+    const spendCanvas = document.getElementById('chartSpendingByCategory');
+    if (spendCanvas) {
+      const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - 30);
+      const byCat = {};
+      (finance.transactions || []).forEach(tx => {
+        if (tx.type !== 'expense' || !tx.date) return;
+        if (parseLocalDate(tx.date) < cutoff) return;
+        const c = tx.category || 'Other';
+        byCat[c] = (byCat[c] || 0) + (tx.amount || 0);
+      });
+      const entries = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+      if (chartSpending) { chartSpending.destroy(); chartSpending = null; }
+      let emptyEl = spendCanvas.parentElement.querySelector('.insight-empty');
+      if (entries.length === 0) {
+        spendCanvas.style.display = 'none';
+        if (!emptyEl) { emptyEl = document.createElement('div'); emptyEl.className = 'insight-empty h-56 flex items-center justify-center text-slate-400 text-sm'; emptyEl.textContent = 'No expenses in the last 30 days.'; spendCanvas.parentElement.appendChild(emptyEl); }
+        emptyEl.style.display = 'flex';
+      } else {
+        if (emptyEl) emptyEl.style.display = 'none';
+        spendCanvas.style.display = '';
+        const palette = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#a855f7', '#06b6d4', '#ec4899', '#64748b', '#84cc16'];
+        chartSpending = new Chart(spendCanvas, {
+          type: 'doughnut',
+          data: { labels: entries.map(e => e[0]), datasets: [{ data: entries.map(e => Math.round(e[1] * 100) / 100), backgroundColor: entries.map((_, i) => palette[i % palette.length]), borderWidth: 0 }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: isDark ? '#94a3b8' : '#64748b', boxWidth: 12, font: { size: 11 } } } } }
+        });
+      }
+    }
+    
+    // Activity counts (last 14 days)
+    const actCanvas = document.getElementById('chartActivity');
+    if (actCanvas) {
+      const days = [];
+      for (let i = 13; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); days.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')); }
+      const counts = days.map(d => lifeLog.filter(e => e.date === d).length);
+      const labels = days.map(d => { const dt = parseLocalDate(d); return (dt.getMonth() + 1) + '/' + dt.getDate(); });
+      if (chartActivity) { chartActivity.destroy(); chartActivity = null; }
+      chartActivity = new Chart(actCanvas, {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Entries', data: counts, backgroundColor: '#3b82f6', borderRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: isDark ? '#64748b' : '#94a3b8', maxRotation: 0, autoSkip: true, font: { size: 10 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0, color: isDark ? '#64748b' : '#94a3b8' }, grid: { color: isDark ? '#334155' : '#e2e8f0' } } } }
+      });
+    }
+    
+    // Consistency this week (habits + chores completion)
+    const consEl = document.getElementById('consistencyWidget');
+    if (consEl) {
+      const last7 = [];
+      for (let i = 6; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); last7.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')); }
+      const todayStr = getLocalDateString();
+      const habitDone = habits.length ? Math.round(habits.reduce((s, h) => s + last7.filter(d => (h.completions || []).includes(d)).length, 0) / (habits.length * 7) * 100) : null;
+      const choresDoneToday = chores.filter(c => isChoreDoneToday(c)).length;
+      const choresDue = chores.filter(c => isChoreDue(c) && !isChoreDoneToday(c)).length;
+      const tasksDone = tasks.filter(t => t.status === 'done').length;
+      const rows = [];
+      if (habitDone !== null) rows.push({ label: 'Habit completion (7d)', value: habitDone + '%', color: '#3b82f6', pct: habitDone });
+      rows.push({ label: 'Chores done today', value: String(choresDoneToday), color: '#0ea5e9' });
+      if (choresDue > 0) rows.push({ label: 'Chores due', value: String(choresDue), color: '#f59e0b' });
+      rows.push({ label: 'Tasks completed', value: String(tasksDone), color: '#22c55e' });
+      consEl.innerHTML = rows.map(r => `
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span class="text-slate-600 dark:text-slate-300">${r.label}</span>
+            <span class="font-semibold text-slate-900 dark:text-white">${r.value}</span>
+          </div>
+          ${typeof r.pct === 'number' ? `<div class="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div class="h-full rounded-full" style="width: ${Math.min(100, r.pct)}%; background: ${r.color}"></div></div>` : ''}
+        </div>`).join('');
+    }
+  };
+  
+  const renderDashboardWidgets = () => {
+    renderTodayWidget();
+    renderActivityWidget();
+    renderInsights();
+  };
+  window.renderDashboardWidgets = renderDashboardWidgets;
+  
+  window.completeTaskFromDashboard = (id) => {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    t.status = 'done';
+    saveData('tasks', tasks);
+    renderTasks();
+    updateStats();
+    renderDashboardWidgets();
+  };
+  
+  // ========================================
+  // Global search
+  // ========================================
+  const buildSearchIndex = () => {
+    const idx = [];
+    tasks.forEach(t => idx.push({ kind: 'task', id: t.id, icon: 'fa-clipboard-check', color: '#3b82f6', title: t.title, sub: 'Task' + (t.status ? ' · ' + t.status : ''), text: [t.title, t.description].filter(Boolean).join(' ').toLowerCase() }));
+    goals.forEach(g => idx.push({ kind: 'goal', id: g.id, icon: 'fa-bullseye', color: '#10b981', title: g.title || g.name || 'Goal', sub: 'Goal', text: [g.title, g.name, g.description].filter(Boolean).join(' ').toLowerCase() }));
+    habits.forEach(h => idx.push({ kind: 'habit', id: h.id, icon: 'fa-sync-alt', color: h.color || '#3b82f6', title: h.name, sub: 'Habit', text: (h.name || '').toLowerCase() }));
+    chores.forEach(c => idx.push({ kind: 'chore', id: c.id, icon: 'fa-broom', color: c.color || '#0ea5e9', title: c.name, sub: 'Chore', text: (c.name || '').toLowerCase() }));
+    journal.forEach(j => idx.push({ kind: 'journal', id: j.id, icon: 'fa-book-open', color: '#a855f7', title: j.title || 'Journal entry', sub: 'Journal · ' + (j.date || ''), text: [j.title, j.content].filter(Boolean).join(' ').toLowerCase() }));
+    (finance.transactions || []).forEach(tx => idx.push({ kind: 'finance', id: tx.id, icon: tx.type === 'income' ? 'fa-arrow-down' : 'fa-arrow-up', color: tx.type === 'income' ? '#10b981' : '#ef4444', title: tx.description || tx.category || 'Transaction', sub: `${tx.category || ''} · ${formatCurrency(tx.amount || 0)} · ${tx.date || ''}`, text: [tx.description, tx.category, String(tx.amount)].filter(Boolean).join(' ').toLowerCase() }));
+    lifeLog.forEach(e => {
+      const t = ACTIVITY_TYPES[e.type];
+      const fieldVals = Object.values(e.data || {}).filter(v => typeof v === 'string').join(' ');
+      const title = e.type === 'work' ? (e.data?.title || 'Work session') : (e.data?.[t?.fields?.[0]?.key] || t?.name || 'Entry');
+      idx.push({ kind: 'lifelog', id: e.id, icon: t?.icon || 'fa-circle', color: t?.color || '#64748b', title, sub: `${t?.name || 'Log'} · ${e.date || ''}`, text: (title + ' ' + fieldVals + ' ' + (t?.name || '')).toLowerCase() });
+    });
+    return idx;
+  };
+  
+  const closeGlobalSearch = () => { document.getElementById('globalSearchResults')?.classList.add('hidden'); };
+  
+  const runGlobalSearch = (q) => {
+    const panel = document.getElementById('globalSearchResults');
+    if (!panel) return;
+    const query = (q || '').trim().toLowerCase();
+    if (!query) { panel.classList.add('hidden'); panel.innerHTML = ''; return; }
+    const matches = buildSearchIndex().filter(it => it.text.includes(query)).slice(0, 40);
+    if (matches.length === 0) {
+      panel.innerHTML = `<div class="p-4 text-sm text-slate-500 dark:text-slate-400 text-center">No results for "${query.replace(/</g, '&lt;')}"</div>`;
+      panel.classList.remove('hidden');
+      return;
+    }
+    panel.innerHTML = `<div class="p-2">` + matches.map(m => `
+      <button type="button" onclick="openSearchResult('${m.kind}','${m.id}')" class="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-left">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${m.color}20;color:${m.color}"><i class="fas ${m.icon} text-sm"></i></div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-slate-900 dark:text-white truncate">${(m.title || '').toString().replace(/</g, '&lt;')}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400 truncate">${(m.sub || '').toString().replace(/</g, '&lt;')}</p>
+        </div>
+      </button>`).join('') + `</div>`;
+    panel.classList.remove('hidden');
+  };
+  window.runGlobalSearch = runGlobalSearch;
+  
+  window.openSearchResult = (kind, id) => {
+    const gs = document.getElementById('globalSearchInput');
+    if (gs) gs.value = '';
+    closeGlobalSearch();
+    switch (kind) {
+      case 'task': showSection('tasks'); break;
+      case 'goal': showSection('goals'); break;
+      case 'habit': showSection('habits'); break;
+      case 'chore': showSection('chores'); break;
+      case 'journal': showSection('journal'); break;
+      case 'finance': showSection('finance'); if (window.editTxn) setTimeout(() => window.editTxn(id), 60); break;
+      case 'lifelog': showSection('lifelog'); if (window.showEntryDetail) setTimeout(() => window.showEntryDetail(id), 60); break;
+    }
+  };
+  
+  const gsInput = document.getElementById('globalSearchInput');
+  if (gsInput) {
+    let gsTimer = null;
+    gsInput.addEventListener('input', () => { clearTimeout(gsTimer); gsTimer = setTimeout(() => runGlobalSearch(gsInput.value), 120); });
+    gsInput.addEventListener('focus', () => { if (gsInput.value.trim()) runGlobalSearch(gsInput.value); });
+    gsInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') { gsInput.value = ''; closeGlobalSearch(); gsInput.blur(); } });
+  }
+  document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('globalSearchResults');
+    const input = document.getElementById('globalSearchInput');
+    if (wrap && !wrap.classList.contains('hidden') && !wrap.contains(e.target) && e.target !== input) closeGlobalSearch();
+  });
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target?.tagName || '').toLowerCase();
+    const typing = tag === 'input' || tag === 'textarea' || e.target?.isContentEditable;
+    const modalOpen = !document.getElementById('modalOverlay')?.classList.contains('hidden');
+    if (e.key === '/' && !typing && !modalOpen) { e.preventDefault(); gsInput?.focus(); }
+    else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); gsInput?.focus(); }
+    else if (e.key.toLowerCase() === 'n' && !typing && !modalOpen && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); openLogModal(); }
+  });
+  
+  // ========================================
   // Settings
   // ========================================
   document.getElementById('exportData')?.addEventListener('click', () => {
@@ -3240,6 +3539,33 @@ if (document.getElementById('mainContent')) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `life-erp-${getLocalDateString()}.json`; a.click();
     URL.revokeObjectURL(url);
+  });
+  
+  const csvEscape = (v) => {
+    const s = v === undefined || v === null ? '' : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const downloadCsv = (filename, rows) => {
+    const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+  document.getElementById('exportFinanceCsv')?.addEventListener('click', () => {
+    const rows = [['Date', 'Type', 'Description', 'Category', 'Amount', 'Account']];
+    sortTxns(finance.transactions || []).forEach(t => rows.push([t.date || '', t.type || '', t.description || '', t.category || '', t.amount ?? '', (finance.accounts || []).find(a => a.id === t.accountId)?.name || '']));
+    downloadCsv(`life-erp-finance-${getLocalDateString()}.csv`, rows);
+  });
+  document.getElementById('exportLifeLogCsv')?.addEventListener('click', () => {
+    const rows = [['Date', 'Type', 'Summary', 'Details']];
+    [...lifeLog].sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(e => {
+      const t = ACTIVITY_TYPES[e.type];
+      const summary = e.type === 'work' ? (e.data?.title || 'Work session') : (e.data?.[t?.fields?.[0]?.key] || t?.name || 'Entry');
+      const details = Object.entries(e.data || {}).filter(([k, v]) => v !== '' && v !== null && v !== undefined && typeof v !== 'boolean').map(([k, v]) => `${k}: ${v}`).join('; ');
+      rows.push([e.date || '', t?.name || e.type, summary, details]);
+    });
+    downloadCsv(`life-erp-lifelog-${getLocalDateString()}.csv`, rows);
   });
 
   document.getElementById('restoreData')?.addEventListener('click', () => {
@@ -3509,6 +3835,7 @@ if (document.getElementById('mainContent')) {
     renderGoals();
     renderHabits();
     renderChores();
+    if (typeof renderDashboardWidgets === 'function') renderDashboardWidgets();
     renderFinance();
     renderJournal();
     renderCalendar();
@@ -3528,6 +3855,8 @@ if (document.getElementById('mainContent')) {
   renderCalendar();
   renderDayDetail();
   updateStats();
+  renderDashboardWidgets();
+  generateReminders();
   
   // App ready: hide loading, show main content, restore section from hash
   const loadingScreen = document.getElementById('loadingScreen');

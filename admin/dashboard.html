@@ -39,6 +39,18 @@
     .sidebar-collapsed .sidebar-logo span { display: none; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     .animate-in { animation: fadeIn 0.3s ease; }
+    .content-section.animate-in { animation: fadeIn 0.35s ease; }
+    /* Accessible keyboard focus rings */
+    a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 2px solid #3b82f6; outline-offset: 2px; border-radius: 8px;
+    }
+    /* Smooth, subtle card lift */
+    .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 30px -10px rgba(59,130,246,0.25); }
+    @media (prefers-reduced-motion: reduce) {
+      .animate-in, .content-section.animate-in { animation: none; }
+      .card-hover:hover { transform: none; }
+    }
     /* Finance tab buttons */
     .finance-tab-btn { cursor: pointer; }
     .finance-tab-btn:not(.bg-blue-600):hover { background: #e2e8f0 !important; }
@@ -184,9 +196,13 @@
             <button id="mobileMenuBtn" class="lg:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
               <i class="fas fa-bars text-slate-600 dark:text-slate-300"></i>
             </button>
-            <div class="hidden sm:flex items-center gap-3 bg-slate-100 dark:bg-slate-700 rounded-xl px-4 py-2 w-72">
-              <i class="fas fa-search text-slate-400"></i>
-              <input type="text" placeholder="Search anything..." class="bg-transparent border-none outline-none text-slate-900 dark:text-white placeholder-slate-400 w-full text-sm">
+            <div class="hidden sm:block relative w-72">
+              <div class="flex items-center gap-3 bg-slate-100 dark:bg-slate-700 rounded-xl px-4 py-2">
+                <i class="fas fa-search text-slate-400"></i>
+                <input id="globalSearchInput" type="text" placeholder="Search anything..." autocomplete="off" aria-label="Search across everything" class="bg-transparent border-none outline-none text-slate-900 dark:text-white placeholder-slate-400 w-full text-sm">
+                <kbd class="hidden md:inline text-[10px] text-slate-400 border border-slate-300 dark:border-slate-500 rounded px-1.5 py-0.5">/</kbd>
+              </div>
+              <div id="globalSearchResults" class="absolute top-full left-0 mt-2 w-[28rem] max-w-[80vw] max-h-96 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl z-50 hidden overflow-y-auto"></div>
             </div>
           </div>
           
@@ -320,6 +336,25 @@
                     <p class="text-xs text-slate-500 dark:text-slate-400">Just now</p>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Insights -->
+          <div class="mt-6">
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2"><i class="fas fa-chart-pie text-blue-500"></i>Insights</h2>
+            <div class="grid lg:grid-cols-3 gap-6">
+              <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+                <h3 class="font-semibold text-slate-900 dark:text-white text-sm mb-3">Spending by category <span class="text-xs font-normal text-slate-400">(last 30 days)</span></h3>
+                <div class="h-56"><canvas id="chartSpendingByCategory"></canvas></div>
+              </div>
+              <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+                <h3 class="font-semibold text-slate-900 dark:text-white text-sm mb-3">Activity <span class="text-xs font-normal text-slate-400">(last 14 days)</span></h3>
+                <div class="h-56"><canvas id="chartActivity"></canvas></div>
+              </div>
+              <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+                <h3 class="font-semibold text-slate-900 dark:text-white text-sm mb-3">This week's consistency</h3>
+                <div id="consistencyWidget" class="space-y-3"></div>
               </div>
             </div>
           </div>
@@ -855,11 +890,25 @@
                 <div class="flex items-center justify-between">
                   <div>
                     <p class="text-sm font-medium text-slate-700 dark:text-slate-300">Export All Data</p>
-                    <p class="text-xs text-slate-500">Download a backup of all your data</p>
+                    <p class="text-xs text-slate-500">Download a JSON backup of all your data</p>
                   </div>
                   <button id="exportData" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
-                    <i class="fas fa-download mr-2"></i>Export
+                    <i class="fas fa-download mr-2"></i>JSON
                   </button>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300">Export as CSV</p>
+                    <p class="text-xs text-slate-500">Spreadsheet-friendly export of finance and life log</p>
+                  </div>
+                  <div class="flex gap-2">
+                    <button id="exportFinanceCsv" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                      <i class="fas fa-file-csv mr-2"></i>Finance
+                    </button>
+                    <button id="exportLifeLogCsv" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                      <i class="fas fa-file-csv mr-2"></i>Life Log
+                    </button>
+                  </div>
                 </div>
                 <div class="flex items-center justify-between">
                   <div>
