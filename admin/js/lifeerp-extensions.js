@@ -7,6 +7,7 @@
 
   let api = null;
   let financeMonth = null;
+  let financeSourceFilter = 'all';
   let paletteIndex = 0;
   let paletteItems = [];
 
@@ -29,6 +30,21 @@
     return (txns || []).filter(t => t.date >= start && t.date <= end);
   };
 
+  const txnSource = (t) => {
+    if (t._lifeLogEntryId) return 'lifelog';
+    if (t._sfinId) return 'bank';
+    if (t._importHash) return 'import';
+    return 'manual';
+  };
+
+  const SOURCE_LABELS = { import: 'OFX import', bank: 'Bank sync', lifelog: 'Life Log', manual: 'Manual' };
+  const SOURCE_COLORS = { import: 'text-blue-500', bank: 'text-green-500', lifelog: 'text-purple-500', manual: 'text-slate-400' };
+
+  const filterBySource = (txns) => {
+    if (financeSourceFilter === 'all') return txns;
+    return txns.filter(t => txnSource(t) === financeSourceFilter);
+  };
+
   // ─── Finance: month filter, budgets, recurring, balance sync ───
   function patchFinance() {
     const origRender = api.renderFinance;
@@ -42,7 +58,7 @@
       const ym = getFinanceMonth();
       const picker = document.getElementById('financeMonthPicker');
       if (picker && picker.value !== ym) picker.value = ym;
-      const monthTxns = txnsInMonth(f.transactions, ym);
+      const monthTxns = filterBySource(txnsInMonth(f.transactions, ym));
       const income = monthTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
       const expenses = monthTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
       const elInc = document.getElementById('totalIncome');
@@ -55,9 +71,9 @@
       const container = document.getElementById('transactionsContainer');
       const txns = f.transactions || [];
       if (!container) return;
-      const filtered = txnsInMonth(txns, ym);
+      const filtered = filterBySource(txnsInMonth(txns, ym));
       if (filtered.length === 0) {
-        container.innerHTML = `<div class="text-center py-8 text-slate-400"><i class="fas fa-receipt text-3xl mb-2 opacity-50"></i><p class="text-sm">No transactions this month</p></div>`;
+        container.innerHTML = `<div class="text-center py-8 text-slate-400"><i class="fas fa-receipt text-3xl mb-2 opacity-50"></i><p class="text-sm">${financeSourceFilter === 'all' ? 'No transactions this month' : 'No transactions for this source'}</p></div>`;
       } else {
         const sorted = api.sortTxns(filtered);
         const byDate = {};
@@ -66,10 +82,13 @@
         Object.keys(byDate).sort((a, b) => new Date(b) - new Date(a)).forEach(dateStr => {
           html += `<div class="mb-4"><div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 px-1">${api.formatDate(dateStr)}</div><div class="space-y-2 txn-date-group" data-date="${dateStr}">`;
           byDate[dateStr].forEach(t => {
+            const src = txnSource(t);
+            const srcLabel = SOURCE_LABELS[src] || src;
+            const srcColor = SOURCE_COLORS[src] || 'text-slate-400';
             html += `<div class="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl group txn-row" data-txn-id="${t.id}" draggable="true">
               <span class="cursor-grab text-slate-400 drag-handle"><i class="fas fa-grip-vertical text-sm"></i></span>
               <div class="w-10 h-10 flex-shrink-0 ${t.type === 'income' ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : 'bg-red-100 dark:bg-red-900/30 text-red-600'} rounded-lg flex items-center justify-center"><i class="fas fa-arrow-${t.type === 'income' ? 'down' : 'up'}"></i></div>
-              <div class="flex-1 min-w-0"><p class="font-medium text-slate-900 dark:text-white text-sm truncate">${(t.description || '').replace(/</g, '&lt;')}</p><p class="text-xs text-slate-500">${t.category || ''}</p></div>
+              <div class="flex-1 min-w-0"><p class="font-medium text-slate-900 dark:text-white text-sm truncate">${(t.description || '').replace(/</g, '&lt;')}</p><p class="text-xs text-slate-500">${t.category || ''}<span class="${srcColor}"> · ${srcLabel}</span></p></div>
               <p class="font-bold flex-shrink-0 ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}">${t.type === 'income' ? '+' : '-'}${api.formatCurrency(t.amount)}</p>
               <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100">
                 <button onclick="editTxn('${t.id}')" class="p-2 text-blue-500" title="Edit"><i class="fas fa-pen text-xs"></i></button>
@@ -89,6 +108,11 @@
 
     document.getElementById('financeMonthPicker')?.addEventListener('change', (e) => {
       financeMonth = e.target.value;
+      api.renderFinance();
+    });
+
+    document.getElementById('financeSourceFilter')?.addEventListener('change', (e) => {
+      financeSourceFilter = e.target.value;
       api.renderFinance();
     });
 
@@ -365,6 +389,34 @@
     if (!confirm(msg)) return;
     const n = removeImportedTransactions(onlyLastBatch);
     api.addNotification?.(label, `Removed ${n} imported transaction${n === 1 ? '' : 's'}.`, n ? 'info' : 'warning');
+  }
+
+  /** Drop Life Log finance rows that duplicate a bank/file import (same date + amount). */
+  function dedupeLifeLogAgainstImports() {
+    const txns = api.finance.transactions || [];
+    const imported = txns.filter(t => t._importHash || t._sfinId);
+    if (!imported.length) return 0;
+    const before = txns.length;
+    api.finance.transactions = txns.filter(t => {
+      if (!t._lifeLogEntryId) return true;
+      return !imported.some(imp =>
+        imp.date === t.date && Math.abs((imp.amount || 0) - (t.amount || 0)) < 0.02
+      );
+    });
+    const removed = before - api.finance.transactions.length;
+    if (removed) {
+      api.saveData('finance', api.finance);
+      api.renderFinance();
+      api.updateStats?.();
+      api.renderDashboardWidgets?.();
+    }
+    return removed;
+  }
+
+  function confirmDedupeLifeLog() {
+    if (!confirm('Remove Life Log finance entries that match a bank/file import on the same date and amount? Manual entries are not touched.')) return;
+    const n = dedupeLifeLogAgainstImports();
+    api.addNotification?.('Dedupe complete', n ? `Removed ${n} duplicate Life Log entr${n === 1 ? 'y' : 'ies'}.` : 'No matching duplicates found.', n ? 'info' : 'warning');
   }
 
   // ─── Command palette ───
@@ -687,6 +739,7 @@
     document.getElementById('weeklyReviewCard')?.addEventListener('click', openWeeklyReview);
     document.getElementById('undoLastImportBtn')?.addEventListener('click', () => confirmRemoveImport(true));
     document.getElementById('removeAllImportsBtn')?.addEventListener('click', () => confirmRemoveImport(false));
+    document.getElementById('dedupeLifeLogImportsBtn')?.addEventListener('click', confirmDedupeLifeLog);
     window.renderBankSyncUI = renderBankSyncUI;
     window.LifeERPImport = { mergeImportedTransactions, mergeSimpleFinData, applyBalanceFromTxn, removeImportedTransactions };
   };

@@ -643,6 +643,16 @@
                 <span>Month</span>
                 <input type="month" id="financeMonthPicker" class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
               </label>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                <span>Source</span>
+                <select id="financeSourceFilter" class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+                  <option value="all">All sources</option>
+                  <option value="import">File import (OFX)</option>
+                  <option value="bank">Bank sync</option>
+                  <option value="lifelog">Life Log</option>
+                  <option value="manual">Manual entry</option>
+                </select>
+              </label>
               <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
                 <input type="checkbox" id="financeAutoBalance" class="rounded border-slate-300">
                 <span>Auto-update balances</span>
@@ -989,9 +999,12 @@
                 <div class="flex items-center justify-between">
                   <div>
                     <p class="text-sm font-medium text-slate-700 dark:text-slate-300">Undo import</p>
-                    <p class="text-xs text-slate-500">Remove bad OFX/CSV imports (keeps manual entries &amp; bank sync)</p>
+                    <p class="text-xs text-slate-500">Remove bad OFX/CSV imports or Life Log duplicates (keeps manual entries &amp; bank sync)</p>
                   </div>
                   <div class="flex gap-2">
+                    <button type="button" id="dedupeLifeLogImportsBtn" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                      <i class="fas fa-clone mr-2"></i>Dedupe
+                    </button>
                     <button type="button" id="undoLastImportBtn" class="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 text-sm rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors">
                       <i class="fas fa-undo mr-2"></i>Last import
                     </button>
