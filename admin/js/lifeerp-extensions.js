@@ -7,23 +7,36 @@
 
   let api = null;
   let financeMonth = null;
+  let financePeriodMode = 'month';
+  let financeRangeStart = null;
+  let financeRangeEnd = null;
   let financeSourceFilter = 'all';
   let financeAccountFilter = 'all';
   let paletteIndex = 0;
   let paletteItems = [];
 
+  const currentMonthYm = () => {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  };
+
   const getFinanceMonth = () => {
     if (financeMonth) return financeMonth;
     const picker = document.getElementById('financeMonthPicker');
     if (picker?.value) return picker.value;
-    const d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    return currentMonthYm();
   };
 
   const formatFinanceMonthLabel = (ym) => {
     const [y, m] = (ym || '').split('-').map(Number);
     if (!y || !m) return 'This month';
     return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  };
+
+  const formatFinanceRangeLabel = (startYm, endYm) => {
+    const a = formatFinanceMonthLabel(startYm);
+    const b = formatFinanceMonthLabel(endYm);
+    return startYm === endYm ? a : `${a} – ${b}`;
   };
 
   const monthStartEnd = (ym) => {
@@ -34,12 +47,96 @@
     return { start, end };
   };
 
+  const loadFinancePeriodSettings = () => {
+    const s = api?.finance?.settings || {};
+    financePeriodMode = s.financePeriodMode || 'month';
+    financeRangeStart = s.financeRangeStart || null;
+    financeRangeEnd = s.financeRangeEnd || null;
+    if (s.financeMonth) financeMonth = s.financeMonth;
+  };
+
+  const saveFinancePeriodSettings = () => {
+    if (!api?.finance) return;
+    api.finance.settings = api.finance.settings || {};
+    api.finance.settings.financePeriodMode = financePeriodMode;
+    api.finance.settings.financeRangeStart = financeRangeStart;
+    api.finance.settings.financeRangeEnd = financeRangeEnd;
+    api.finance.settings.financeMonth = getFinanceMonth();
+    api.saveData('finance', api.finance);
+  };
+
+  const applyFinancePeriodUI = () => {
+    const modeEl = document.getElementById('financePeriodMode');
+    const monthWrap = document.getElementById('financePeriodMonthWrap');
+    const rangeWrap = document.getElementById('financePeriodRangeWrap');
+    const monthPicker = document.getElementById('financeMonthPicker');
+    const rangeStart = document.getElementById('financeRangeStart');
+    const rangeEnd = document.getElementById('financeRangeEnd');
+    const ym = getFinanceMonth();
+    if (modeEl) modeEl.value = financePeriodMode;
+    if (monthPicker) monthPicker.value = ym;
+    const rs = financeRangeStart || ym;
+    const re = financeRangeEnd || ym;
+    if (rangeStart) rangeStart.value = rs;
+    if (rangeEnd) rangeEnd.value = re;
+    if (monthWrap) monthWrap.classList.toggle('hidden', financePeriodMode !== 'month');
+    if (rangeWrap) rangeWrap.classList.toggle('hidden', financePeriodMode !== 'range');
+  };
+
+  const syncFinancePeriodFromUI = () => {
+    const modeEl = document.getElementById('financePeriodMode');
+    if (modeEl) financePeriodMode = modeEl.value || 'month';
+    const picker = document.getElementById('financeMonthPicker');
+    if (picker?.value) financeMonth = picker.value;
+    const rs = document.getElementById('financeRangeStart');
+    const re = document.getElementById('financeRangeEnd');
+    if (rs?.value) financeRangeStart = rs.value;
+    if (re?.value) financeRangeEnd = re.value;
+  };
+
+  const getFinancePeriod = () => {
+    syncFinancePeriodFromUI();
+    if (financePeriodMode === 'all') {
+      return { mode: 'all', start: null, end: null, label: 'All time' };
+    }
+    if (financePeriodMode === 'range') {
+      let startYm = financeRangeStart || getFinanceMonth();
+      let endYm = financeRangeEnd || startYm;
+      if (startYm > endYm) { const t = startYm; startYm = endYm; endYm = t; }
+      const { start } = monthStartEnd(startYm);
+      const { end } = monthStartEnd(endYm);
+      return { mode: 'range', start, end, label: formatFinanceRangeLabel(startYm, endYm), startYm, endYm };
+    }
+    const ym = getFinanceMonth();
+    const { start, end } = monthStartEnd(ym);
+    return { mode: 'month', start, end, label: formatFinanceMonthLabel(ym), ym };
+  };
+
   const txnsInMonth = (txns, ym) => {
     const { start, end } = monthStartEnd(ym);
+    return txnsInDateRange(txns, start, end);
+  };
+
+  const txnsInDateRange = (txns, start, end) => {
     return (txns || []).filter(t => {
       const d = (t.date || '').slice(0, 10);
-      return d >= start && d <= end;
+      if (!d) return false;
+      if (start && d < start) return false;
+      if (end && d > end) return false;
+      return true;
     });
+  };
+
+  const txnsInPeriod = (txns, period) => {
+    if (!period || period.mode === 'all') return txns || [];
+    return txnsInDateRange(txns, period.start, period.end);
+  };
+
+  const onFinancePeriodChange = () => {
+    syncFinancePeriodFromUI();
+    applyFinancePeriodUI();
+    saveFinancePeriodSettings();
+    api.renderFinance();
   };
 
   const txnSource = (t) => {
@@ -134,10 +231,7 @@
 
   const isWeakCategory = (cat) => !cat || cat === 'Other';
 
-  const syncFinanceMonthFromPicker = () => {
-    const picker = document.getElementById('financeMonthPicker');
-    if (picker?.value) financeMonth = picker.value;
-  };
+  const syncFinanceMonthFromPicker = () => syncFinancePeriodFromUI();
 
   /** Copy manual / Life Log detail onto import; import amount is never overwritten. */
   function mergeManualIntoImport(importTxn, manualTxn) {
@@ -371,30 +465,33 @@
     if (!origRender || origRender.__patched) return;
 
     api.renderFinance = function patchedRenderFinance() {
-      syncFinanceMonthFromPicker();
+      syncFinancePeriodFromUI();
       const f = api.finance;
       f.budgets = f.budgets || {};
       f.recurring = f.recurring || [];
       f.settings = f.settings || { autoUpdateBalance: false };
-      const ym = getFinanceMonth();
-      const monthTxns = applyTxnFilters(txnsInMonth(f.transactions, ym));
-      const income = monthTxns.filter(isCountableIncome).reduce((s, t) => s + t.amount, 0);
-      const expenses = monthTxns.filter(isSpendingExpense).reduce((s, t) => s + t.amount, 0);
-      const monthLabel = formatFinanceMonthLabel(ym);
+      const period = getFinancePeriod();
+      const periodTxns = applyTxnFilters(txnsInPeriod(f.transactions, period));
+      const income = periodTxns.filter(isCountableIncome).reduce((s, t) => s + t.amount, 0);
+      const expenses = periodTxns.filter(isSpendingExpense).reduce((s, t) => s + t.amount, 0);
+      const periodLabel = period.label;
       const elInc = document.getElementById('totalIncome');
       const elExp = document.getElementById('totalExpenses');
       const elBal = document.getElementById('totalBalance');
       if (elInc) elInc.textContent = api.formatCurrency(income);
       if (elExp) elExp.textContent = api.formatCurrency(expenses);
       if (elBal) elBal.textContent = api.formatCurrency(income - expenses);
-      document.querySelectorAll('[data-finance-month-label]').forEach(el => { el.textContent = monthLabel; });
+      document.querySelectorAll('[data-finance-month-label]').forEach(el => { el.textContent = periodLabel; });
 
       const container = document.getElementById('transactionsContainer');
       const txns = f.transactions || [];
       if (!container) return;
-      const filtered = applyTxnFilters(txnsInMonth(txns, ym));
+      const filtered = applyTxnFilters(txnsInPeriod(txns, period));
+      const emptyMsg = financeSourceFilter === 'all'
+        ? (period.mode === 'all' ? 'No transactions yet' : 'No transactions in this period')
+        : 'No transactions for this source';
       if (filtered.length === 0) {
-        container.innerHTML = `<div class="text-center py-8 text-slate-400"><i class="fas fa-receipt text-3xl mb-2 opacity-50"></i><p class="text-sm">${financeSourceFilter === 'all' ? 'No transactions this month' : 'No transactions for this source'}</p></div>`;
+        container.innerHTML = `<div class="text-center py-8 text-slate-400"><i class="fas fa-receipt text-3xl mb-2 opacity-50"></i><p class="text-sm">${emptyMsg}</p></div>`;
       } else {
         const sorted = api.sortTxns(filtered);
         const byDate = {};
@@ -439,9 +536,24 @@
     api.renderFinance.__patched = true;
     window.__renderFinancePatched = api.renderFinance;
 
-    document.getElementById('financeMonthPicker')?.addEventListener('change', (e) => {
-      financeMonth = e.target.value;
-      api.renderFinance();
+    document.getElementById('financePeriodMode')?.addEventListener('change', onFinancePeriodChange);
+    document.getElementById('financeMonthPicker')?.addEventListener('change', onFinancePeriodChange);
+    document.getElementById('financeRangeStart')?.addEventListener('change', onFinancePeriodChange);
+    document.getElementById('financeRangeEnd')?.addEventListener('change', onFinancePeriodChange);
+    document.getElementById('financeAllTimeBtn')?.addEventListener('click', () => {
+      financePeriodMode = 'all';
+      const modeEl = document.getElementById('financePeriodMode');
+      if (modeEl) modeEl.value = 'all';
+      onFinancePeriodChange();
+    });
+    document.getElementById('financeThisMonthBtn')?.addEventListener('click', () => {
+      financePeriodMode = 'month';
+      financeMonth = currentMonthYm();
+      const modeEl = document.getElementById('financePeriodMode');
+      const picker = document.getElementById('financeMonthPicker');
+      if (modeEl) modeEl.value = 'month';
+      if (picker) picker.value = financeMonth;
+      onFinancePeriodChange();
     });
 
     document.getElementById('financeSourceFilter')?.addEventListener('change', (e) => {
@@ -514,7 +626,12 @@
   function renderBudgetsUI() {
     const el = document.getElementById('budgetsContainer');
     if (!el) return;
-    const ym = getFinanceMonth();
+    const period = getFinancePeriod();
+    if (period.mode !== 'month') {
+      el.innerHTML = '<p class="text-sm text-slate-400 text-center py-4">Monthly budgets apply in <strong>Month</strong> view. Switch period to set per-category budgets.</p>';
+      return;
+    }
+    const ym = period.ym;
     const f = api.finance;
     f.budgets = f.budgets || {};
     const monthBudgets = f.budgets[ym] || f.budgets.default || {};
@@ -1407,8 +1524,10 @@
   window.initLifeERPExtensions = function (lifeApi) {
     api = lifeApi;
     financeMonth = getFinanceMonth();
+    loadFinancePeriodSettings();
+    applyFinancePeriodUI();
     const picker = document.getElementById('financeMonthPicker');
-    if (picker) picker.value = financeMonth;
+    if (picker && !picker.value) picker.value = financeMonth || currentMonthYm();
     if (document.getElementById('financeAutoBalance')) {
       document.getElementById('financeAutoBalance').checked = !!api.finance.settings?.autoUpdateBalance;
     }

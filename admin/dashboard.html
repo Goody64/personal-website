@@ -639,10 +639,26 @@
           <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
             <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Finance</h1>
             <div class="flex flex-wrap items-center gap-3">
-              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <span>Month</span>
-                <input type="month" id="financeMonthPicker" class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            <div class="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <label class="flex items-center gap-2">
+                <span>Period</span>
+                <select id="financePeriodMode" class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+                  <option value="month">Month</option>
+                  <option value="range">Range</option>
+                  <option value="all">All time</option>
+                </select>
               </label>
+              <div id="financePeriodMonthWrap" class="flex items-center gap-2">
+                <input type="month" id="financeMonthPicker" class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm" title="Select month">
+              </div>
+              <div id="financePeriodRangeWrap" class="hidden flex items-center gap-2">
+                <input type="month" id="financeRangeStart" class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm" title="From month">
+                <span class="text-slate-400">–</span>
+                <input type="month" id="financeRangeEnd" class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm" title="Through month">
+              </div>
+              <button type="button" id="financeThisMonthBtn" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm" title="Jump to current month">This month</button>
+              <button type="button" id="financeAllTimeBtn" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm" title="Show all transactions">All time</button>
+            </div>
               <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                 <span>Source</span>
                 <select id="financeSourceFilter" class="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
