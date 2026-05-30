@@ -103,7 +103,7 @@
   const isSpendingExpense = (t) => t.type === 'expense' && !t._pairedImportId;
   const isCountableIncome = (t) => t.type === 'income' && !t._pairedImportId;
 
-  const CC_PAYMENT_RE = /credit\s*card|card\s*payment|card\s*pymt|autopay|auto\s*pay|payment\s*thank\s*you|online\s*payment|payment\s*to\s*chase|chase\s*credit|capital\s*one|discover\s*card|amex|american\s*express|citi\s*card|apple\s*card|barclays\s*card|syncb|card\s*bill|visa\s*payment|mastercard/i;
+  const CC_PAYMENT_RE = /payment\s*thank\s*you|online\s*payment,\s*thank|autopay|auto\s*pay|card\s*payment|card\s*pymt|payment\s*to\s*chase|chase\s*credit\s*cr|credit\s*card\s*payment|bill\s*pay|syncb\s*payment/i;
 
   const looksLikeCcPayment = (desc) => CC_PAYMENT_RE.test(String(desc || ''));
 
@@ -594,8 +594,9 @@
     const isBank = typeof window.isBankCashAccount === 'function' && window.isBankCashAccount(accountType);
 
     if (accountType === 'credit_card') {
-      // OFX credit cards: positive = purchase/charge, negative = payment/credit/refund
-      if (looksLikeCcPayment(desc) || signedAmt < 0) {
+      // Card charges are expenses; only explicit statement-payment descriptions are transfers.
+      // OFX/CSV sign varies by bank — never infer payment from sign alone.
+      if (looksLikeCcPayment(desc)) {
         type = 'transfer';
         category = 'Transfer';
       } else {
@@ -628,7 +629,7 @@
   function importHintForAccount(accountId) {
     const a = (api.finance.accounts || []).find(x => x.id === accountId);
     if (!a) return 'Select the account this OFX file belongs to.';
-    if (a.type === 'credit_card') return 'Credit card import: purchases count as spending. Statement payments/credits are transfers (not income).';
+    if (a.type === 'credit_card') return 'Credit card import: purchases are expenses. Only statement payments (e.g. "ONLINE PAYMENT, THANK YOU") are transfers.';
     if (typeof window.isBankCashAccount === 'function' && window.isBankCashAccount(a.type)) {
       return 'Bank import: income & bills count as spending/cash flow. CC statement payments auto-mark as transfers.';
     }
@@ -1030,21 +1031,26 @@
     }
   }
 
-  /** Fix CC imports misclassified before sign-aware logic (charges as income, payments as expense). */
+  /** Fix card purchases misclassified as transfers; mark only explicit statement payments as transfer. */
   function repairCcImportClassification() {
     const accounts = api.finance.accounts || [];
     let n = 0;
     (api.finance.transactions || []).forEach(t => {
       const acct = accounts.find(a => a.id === t.accountId);
       const onCard = acct?.type === 'credit_card';
-      const signed = t._importSignedAmt;
+      const isPayment = looksLikeCcPayment(t.description);
 
-      if (looksLikeCcPayment(t.description)) {
-        if (t.type !== 'transfer') {
-          t.type = 'transfer';
-          t.category = 'Transfer';
-          n++;
-        }
+      if (onCard && t.type === 'transfer' && !isPayment) {
+        t.type = 'expense';
+        if (!t.category || t.category === 'Transfer') t.category = 'Other';
+        n++;
+        return;
+      }
+
+      if (isPayment && t.type !== 'transfer') {
+        t.type = 'transfer';
+        t.category = 'Transfer';
+        n++;
         return;
       }
 
@@ -1053,13 +1059,6 @@
       if (t.type === 'income') {
         t.type = 'expense';
         if (!t.category || t.category === 'Salary' || t.category === 'Interest') t.category = 'Other';
-        n++;
-        return;
-      }
-
-      if (t.type === 'expense' && signed != null && signed < 0) {
-        t.type = 'transfer';
-        t.category = 'Transfer';
         n++;
       }
     });
@@ -1087,7 +1086,7 @@
   }
 
   function confirmMarkCcTransfers() {
-    if (!confirm('Fix credit card classification?\n\n• Card purchases won\'t count as income\n• Statement payments on bank or card become transfers (matches money leaving checking)\n• Neither affects spending totals')) return;
+    if (!confirm('Fix credit card rows?\n\n• Purchases wrongly marked Transfer → Expense\n• Statement payments (e.g. "ONLINE PAYMENT, THANK YOU") → Transfer\n• Transfers are ignored for spending totals and enrich')) return;
     const n = markCcPaymentsAsTransfers();
     notifyUser('CC classification fixed', n ? `Updated ${n} transaction${n === 1 ? '' : 's'}.` : 'Nothing to fix — already classified.', n ? 'info' : 'warning');
   }
@@ -1415,7 +1414,8 @@
     }
     patchFinance();
     const repaired = repairUnpairedDuplicates(api.finance.transactions || []);
-    if (repaired) api.saveData('finance', api.finance);
+    const ccFixed = repairCcImportClassification();
+    if (repaired || ccFixed) api.saveData('finance', api.finance);
     api.renderFinance();
     patchCommandPalette();
     patchTasksForRecurrence();
