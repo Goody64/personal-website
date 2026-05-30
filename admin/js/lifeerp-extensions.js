@@ -14,8 +14,16 @@
 
   const getFinanceMonth = () => {
     if (financeMonth) return financeMonth;
+    const picker = document.getElementById('financeMonthPicker');
+    if (picker?.value) return picker.value;
     const d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  };
+
+  const formatFinanceMonthLabel = (ym) => {
+    const [y, m] = (ym || '').split('-').map(Number);
+    if (!y || !m) return 'This month';
+    return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   };
 
   const monthStartEnd = (ym) => {
@@ -28,22 +36,58 @@
 
   const txnsInMonth = (txns, ym) => {
     const { start, end } = monthStartEnd(ym);
-    return (txns || []).filter(t => t.date >= start && t.date <= end);
+    return (txns || []).filter(t => {
+      const d = (t.date || '').slice(0, 10);
+      return d >= start && d <= end;
+    });
   };
 
   const txnSource = (t) => {
-    if (t._lifeLogEntryId) return 'lifelog';
     if (t._sfinId) return 'bank';
     if (t._importHash) return 'import';
+    if (t._lifeLogEntryId || t._fromLifeLog) return 'lifelog';
     return 'manual';
   };
 
-  const SOURCE_LABELS = { import: 'OFX import', bank: 'Bank sync', lifelog: 'Life Log', manual: 'Manual' };
-  const SOURCE_COLORS = { import: 'text-blue-500', bank: 'text-green-500', lifelog: 'text-purple-500', manual: 'text-slate-400' };
+  const isBothTxn = (t) => isImportedTxn(t) && (!!t._lifeLogEntryId || !!t._fromLifeLog || !!t._pairedManualId);
+
+  const SOURCE_LABELS = { import: 'OFX import', bank: 'Bank sync', lifelog: 'Life Log', manual: 'Manual', both: 'Both' };
+  const SOURCE_COLORS = { import: 'text-blue-500', bank: 'text-green-500', lifelog: 'text-purple-500', manual: 'text-slate-400', both: 'text-indigo-500', paired: 'text-amber-500' };
+
+  /** Display tags — imports keep OFX tag even when enriched with Life Log / manual detail. */
+  const getTxnSourceTags = (t) => {
+    if (t.type === 'transfer') return [{ label: 'Transfer', color: SOURCE_COLORS.manual }];
+    const tags = [];
+    if (t._sfinId) tags.push({ label: 'Bank sync', color: SOURCE_COLORS.bank });
+    else if (isImportedTxn(t)) tags.push({ label: 'OFX import', color: SOURCE_COLORS.import });
+    if (t._lifeLogEntryId || t._fromLifeLog) tags.push({ label: 'Life Log', color: SOURCE_COLORS.lifelog });
+    else if (isManualSideTxn(t) && !t._pairedImportId) tags.push({ label: 'Manual', color: SOURCE_COLORS.manual });
+    if (t._pairedImportId) {
+      if (!tags.some(x => x.label === 'Manual')) tags.push({ label: 'Manual', color: SOURCE_COLORS.manual });
+      tags.push({ label: 'Paired', color: SOURCE_COLORS.paired });
+    }
+    if (isBothTxn(t) && tags.length >= 2) {
+      return [
+        { label: 'Both', color: SOURCE_COLORS.both },
+        ...tags.filter(x => x.label !== 'Both')
+      ];
+    }
+    if (!tags.length) tags.push({ label: 'Manual', color: SOURCE_COLORS.manual });
+    return tags;
+  };
+
+  const formatTxnSourceTagsHtml = (t) => {
+    const tags = getTxnSourceTags(t);
+    return tags.map(({ label, color }) => `<span class="${color}">${label}</span>`).join('<span class="text-slate-400"> · </span>');
+  };
 
   const filterBySource = (txns) => {
     if (financeSourceFilter === 'all') return txns;
     if (financeSourceFilter === 'transfer') return txns.filter(t => t.type === 'transfer');
+    if (financeSourceFilter === 'both') return txns.filter(isBothTxn);
+    if (financeSourceFilter === 'import') return txns.filter(t => isImportedTxn(t));
+    if (financeSourceFilter === 'lifelog') return txns.filter(t => !!t._lifeLogEntryId || !!t._fromLifeLog);
+    if (financeSourceFilter === 'manual') return txns.filter(t => isManualSideTxn(t) && !t._pairedImportId);
     return txns.filter(t => txnSource(t) === financeSourceFilter);
   };
 
@@ -55,61 +99,266 @@
 
   const applyTxnFilters = (txns) => filterByAccount(filterBySource(txns));
 
-  const isSpendingExpense = (t) => t.type === 'expense';
+  /** Paired manual rows are shadow duplicates of an import — exclude from all totals. */
+  const isSpendingExpense = (t) => t.type === 'expense' && !t._pairedImportId;
+  const isCountableIncome = (t) => t.type === 'income' && !t._pairedImportId;
 
   const CC_PAYMENT_RE = /credit\s*card|card\s*payment|card\s*pymt|autopay|auto\s*pay|payment\s*thank\s*you|online\s*payment|payment\s*to\s*chase|chase\s*credit|capital\s*one|discover\s*card|amex|american\s*express|citi\s*card|apple\s*card|barclays\s*card|syncb|card\s*bill|visa\s*payment|mastercard/i;
 
   const looksLikeCcPayment = (desc) => CC_PAYMENT_RE.test(String(desc || ''));
 
-  const AMT_MATCH_EPS = 0.02;
+  const AMT_MATCH_EPS = 0.011;
 
-  const amountsMatch = (a, b) => Math.abs((a || 0) - (b || 0)) < AMT_MATCH_EPS;
+  const txnAmount = (n) => (api.parseAmount ? api.parseAmount(n) : Math.round((parseFloat(n) || 0) * 100) / 100);
+  const toCents = (n) => Math.round(txnAmount(n) * 100);
+  const amountsMatch = (a, b) => Math.abs(toCents(a) - toCents(b)) <= 1;
 
-  const isImportedTxn = (t) => !!(t._importHash || t._sfinId);
+  const normalizeDate = (raw) => {
+    const s = String(raw || '').trim();
+    if (!s) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (mdy) {
+      const yr = mdy[3].length === 2 ? '20' + mdy[3] : mdy[3];
+      return `${yr}-${mdy[1].padStart(2, '0')}-${mdy[2].padStart(2, '0')}`;
+    }
+    return s.slice(0, 10);
+  };
+
+  const sameDate = (a, b) => normalizeDate(a) === normalizeDate(b);
+
+  const isImportedTxn = (t) => !!(t._importHash || t._sfinId || t._importBatchAt != null || t._importSignedAmt != null);
+
+  /** Self-reported side: Life Log finance rows and manual Add Transaction (never imports). */
+  const isManualSideTxn = (t) => !isImportedTxn(t) && t.type !== 'transfer';
 
   const isWeakCategory = (cat) => !cat || cat === 'Other';
 
-  const isWeakDescription = (desc) => {
-    const d = (String(desc || '')).trim();
-    return !d || d === 'Import' || d.length < 5;
+  const syncFinanceMonthFromPicker = () => {
+    const picker = document.getElementById('financeMonthPicker');
+    if (picker?.value) financeMonth = picker.value;
   };
 
-  /** Copy Life Log detail onto an import; import amount is never overwritten. */
-  function enrichImportFromLifeLog(importTxn, lifeLogTxn) {
+  /** Copy manual / Life Log detail onto import; import amount is never overwritten. */
+  function mergeManualIntoImport(importTxn, manualTxn) {
     let changed = false;
-    if (lifeLogTxn._lifeLogEntryId && !importTxn._lifeLogEntryId) {
-      importTxn._lifeLogEntryId = lifeLogTxn._lifeLogEntryId;
-      if (lifeLogTxn._fromLifeLog) importTxn._fromLifeLog = lifeLogTxn._fromLifeLog;
+    if (manualTxn._lifeLogEntryId && !importTxn._lifeLogEntryId) {
+      importTxn._lifeLogEntryId = manualTxn._lifeLogEntryId;
+      if (manualTxn._fromLifeLog) importTxn._fromLifeLog = manualTxn._fromLifeLog;
       changed = true;
     }
-    if (isWeakCategory(importTxn.category) && lifeLogTxn.category && !isWeakCategory(lifeLogTxn.category)) {
-      importTxn.category = lifeLogTxn.category;
+    if (manualTxn._lifeLogEntryId) {
+      const entry = (api.lifeLog || []).find(e => e.id === manualTxn._lifeLogEntryId);
+      if (entry && applyLifeLogToTxn(importTxn, entry)) changed = true;
+    }
+    if (manualTxn.category && isWeakCategory(importTxn.category)) {
+      importTxn.category = manualTxn.category;
       changed = true;
     }
-    if (isWeakDescription(importTxn.description) && lifeLogTxn.description && lifeLogTxn.description.trim().length > (importTxn.description || '').trim().length) {
-      importTxn.description = lifeLogTxn.description;
+    const manualDesc = String(manualTxn.description || '').trim();
+    if (manualDesc && manualDesc !== String(importTxn.description || '').trim()) {
+      importTxn.description = manualDesc;
+      changed = true;
+    }
+    if (importTxn._pairedManualId !== manualTxn.id) {
+      importTxn._pairedManualId = manualTxn.id;
+      changed = true;
+    }
+    if (manualTxn._pairedImportId !== importTxn.id) {
+      manualTxn._pairedImportId = importTxn.id;
       changed = true;
     }
     return changed;
   }
 
-  function findImportMatchForLifeLog(lifeLogTxn, imported, usedImportIds) {
+  /** Link existing enriched pairs so manual shadow rows stop inflating monthly totals. */
+  function repairUnpairedDuplicates(txns) {
+    const imports = txns.filter(isImportedTxn);
+    const manualSide = txns.filter(t => isManualSideTxn(t) && !t._pairedImportId);
+    let changed = false;
+    manualSide.forEach(m => {
+      const imp = imports.find(i =>
+        sameDate(i.date, m.date) &&
+        amountsMatch(i.amount, m.amount) &&
+        (!i._pairedManualId || i._pairedManualId === m.id)
+      );
+      if (!imp) return;
+      if (mergeManualIntoImport(imp, m)) changed = true;
+      else if (imp._pairedManualId !== m.id || m._pairedImportId !== imp.id) {
+        imp._pairedManualId = m.id;
+        m._pairedImportId = imp.id;
+        changed = true;
+      }
+    });
+    return changed;
+  }
+
+  function findImportMatchForManual(manualTxn, imported, usedImportIds) {
     return imported.find(imp =>
       !usedImportIds.has(imp.id) &&
-      imp.date === lifeLogTxn.date &&
-      amountsMatch(imp.amount, lifeLogTxn.amount)
+      sameDate(imp.date, manualTxn.date) &&
+      amountsMatch(imp.amount, manualTxn.amount)
     );
   }
 
-  function findLifeLogMatchForImport(importTxn, lifeLogTxns, usedLifeLogIds) {
-    return lifeLogTxns.find(ll =>
-      !usedLifeLogIds.has(ll.id) &&
-      ll.date === importTxn.date &&
-      amountsMatch(ll.amount, importTxn.amount)
+  function findManualMatchForImport(importTxn, manualTxns, usedManualIds) {
+    return manualTxns.find(m =>
+      !usedManualIds.has(m.id) &&
+      (!m._pairedImportId || m._pairedImportId === importTxn.id) &&
+      sameDate(m.date, importTxn.date) &&
+      amountsMatch(m.amount, importTxn.amount)
     );
+  }
+
+  function getLifeLogAmount(entry) {
+    if (!entry || (entry.type !== 'meal' && entry.type !== 'purchase')) return 0;
+    const raw = entry.data?.amount;
+    if (raw == null || raw === '') return 0;
+    const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/[$,\s]/g, ''));
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return api.parseAmount ? api.parseAmount(n) : Math.round(n * 100) / 100;
+  }
+
+  const txnSpendAmount = (t) => Math.abs(txnAmount(t.amount));
+
+  function getLifeLogSpendEntries() {
+    return (api.lifeLog || []).filter(e =>
+      (e.type === 'purchase' || e.type === 'meal') && getLifeLogAmount(e) > 0
+    );
+  }
+
+  /** When several Life Log rows share date+amount, prefer store/restaurant name in the bank description. */
+  function pickLifeLogByDescriptionHint(txn, candidates) {
+    if (!candidates.length) return null;
+    if (candidates.length === 1) return candidates[0];
+    const desc = String(txn.description || '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ');
+    const scored = candidates.map(e => {
+      const store = String(e.data?.store || e.data?.restaurant || '').toUpperCase();
+      const item = String(e.data?.item || e.data?.meal || '').toUpperCase();
+      let score = 0;
+      store.split(/\s+/).filter(w => w.length > 2).forEach(w => { if (desc.includes(w)) score += 2; });
+      item.split(/\s+/).filter(w => w.length > 2).forEach(w => { if (desc.includes(w)) score += 1; });
+      if (store && desc.includes(store.replace(/'/g, '').slice(0, 6))) score += 3;
+      return { e, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0].score > 0 ? scored[0].e : candidates[0];
+  }
+
+  function findLifeLogForTxn(txn, lifeSpend, usedLifeLogIds) {
+    const txnDay = normalizeDate(txn.date);
+    const txnAmt = txnSpendAmount(txn);
+    if (!txnDay || txnAmt <= 0) return null;
+
+    if (txn._lifeLogEntryId && !usedLifeLogIds.has(txn._lifeLogEntryId)) {
+      const linked = lifeSpend.find(e => e.id === txn._lifeLogEntryId);
+      if (linked) return linked;
+    }
+
+    const dayAmountMatches = lifeSpend.filter(e => {
+      if (usedLifeLogIds.has(e.id)) return false;
+      if (normalizeDate(e.date) !== txnDay) return false;
+      return amountsMatch(getLifeLogAmount(e), txnAmt);
+    });
+    if (dayAmountMatches.length) return pickLifeLogByDescriptionHint(txn, dayAmountMatches);
+    return null;
+  }
+
+  function getLifeLogDescription(entry) {
+    if (entry.type === 'meal') {
+      const parts = [entry.data?.meal];
+      if (entry.data?.restaurant) parts.push(`at ${entry.data.restaurant}`);
+      else if (entry.data?.description) parts.push(entry.data.description);
+      return parts.filter(Boolean).join(' ');
+    }
+    if (entry.type === 'purchase') {
+      return (entry.data?.item || 'Purchase') + (entry.data?.store ? ` (${entry.data.store})` : '');
+    }
+    return '';
+  }
+
+  function getLifeLogCategory(entry) {
+    if (entry.type === 'meal') return 'Food';
+    if (entry.type === 'purchase') return entry.data?.financeCategory || 'Shopping';
+    return 'Other';
+  }
+
+  function applyLifeLogToTxn(txn, entry) {
+    let changed = false;
+    if (txn._lifeLogEntryId !== entry.id) {
+      txn._lifeLogEntryId = entry.id;
+      txn._fromLifeLog = entry.type;
+      changed = true;
+    }
+    const desc = getLifeLogDescription(entry);
+    if (desc && String(txn.description || '').trim() !== desc) {
+      txn.description = desc;
+      changed = true;
+    }
+    const cat = getLifeLogCategory(entry);
+    if (cat && txn.category !== cat) {
+      txn.category = cat;
+      changed = true;
+    }
+    return changed;
+  }
+
+  function mergeLifeLogIntoImport(importTxn, entry) {
+    return applyLifeLogToTxn(importTxn, entry);
+  }
+
+
+  function mergeImportedTransactions(rows, accountId, balances) {
+    api.finance.transactions = api.finance.transactions || [];
+    api.finance.settings = api.finance.settings || {};
+    const batchAt = Date.now();
+    api.finance.settings.lastImportBatchAt = batchAt;
+    let added = 0, skipped = 0;
+    rows.forEach(row => {
+      const hash = row._importHash || `${row.date}-${row.amount}-${row.description}`;
+      const exists = api.finance.transactions.some(t =>
+        t._importHash === hash || (t.date === row.date && t.amount === row.amount && t.description === row.description)
+      );
+      if (exists) { skipped++; return; }
+      api.finance.transactions.push({
+        id: api.generateId(), type: row.type, description: row.description, amount: row.amount,
+        category: row.category || 'Other', accountId: accountId || null, date: row.date,
+        createdAt: Date.now(), _importHash: hash, _importBatchAt: batchAt,
+        _importSignedAmt: row.signedAmt
+      });
+      added++;
+    });
+    if (accountId && balances?.ledger != null) {
+      const acct = (api.finance.accounts || []).find(a => a.id === accountId);
+      if (acct) {
+        acct.currentBalance = balances.ledger;
+        acct.balanceHistory = acct.balanceHistory || [];
+        acct.balanceHistory.push({ date: api.getLocalDateString(), balance: balances.ledger });
+      }
+    }
+    api.saveData('finance', api.finance);
+    api.renderFinance();
+    api.updateStats?.();
+    if (added > 0) enrichImportsFromLifeLog();
+    return { added, skipped };
+  }
+
+  function setImportToolsStatus(msg, type = 'info') {
+    const el = document.getElementById('importToolsStatus');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = `text-xs text-right mt-2 ${type === 'warning' ? 'text-amber-600 dark:text-amber-400' : type === 'error' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`;
+    el.classList.remove('hidden');
+  }
+
+  function notifyUser(title, message, type = 'info') {
+    api?.showToast?.(title, message, type);
+    api?.addNotification?.(title, message, type);
+    setImportToolsStatus(message, type);
   }
 
   function saveFinanceAndRefresh() {
+    syncFinanceMonthFromPicker();
     api.saveData('finance', api.finance);
     api.renderFinance();
     api.updateStats?.();
@@ -122,22 +371,23 @@
     if (!origRender || origRender.__patched) return;
 
     api.renderFinance = function patchedRenderFinance() {
+      syncFinanceMonthFromPicker();
       const f = api.finance;
       f.budgets = f.budgets || {};
       f.recurring = f.recurring || [];
       f.settings = f.settings || { autoUpdateBalance: false };
       const ym = getFinanceMonth();
-      const picker = document.getElementById('financeMonthPicker');
-      if (picker && picker.value !== ym) picker.value = ym;
       const monthTxns = applyTxnFilters(txnsInMonth(f.transactions, ym));
-      const income = monthTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+      const income = monthTxns.filter(isCountableIncome).reduce((s, t) => s + t.amount, 0);
       const expenses = monthTxns.filter(isSpendingExpense).reduce((s, t) => s + t.amount, 0);
+      const monthLabel = formatFinanceMonthLabel(ym);
       const elInc = document.getElementById('totalIncome');
       const elExp = document.getElementById('totalExpenses');
       const elBal = document.getElementById('totalBalance');
       if (elInc) elInc.textContent = api.formatCurrency(income);
       if (elExp) elExp.textContent = api.formatCurrency(expenses);
       if (elBal) elBal.textContent = api.formatCurrency(income - expenses);
+      document.querySelectorAll('[data-finance-month-label]').forEach(el => { el.textContent = monthLabel; });
 
       const container = document.getElementById('transactionsContainer');
       const txns = f.transactions || [];
@@ -153,21 +403,25 @@
         Object.keys(byDate).sort((a, b) => new Date(b) - new Date(a)).forEach(dateStr => {
           html += `<div class="mb-4"><div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 px-1">${api.formatDate(dateStr)}</div><div class="space-y-2 txn-date-group" data-date="${dateStr}">`;
           byDate[dateStr].forEach(t => {
-            const src = txnSource(t);
-            const srcLabel = t.type === 'transfer' ? 'Transfer' : (SOURCE_LABELS[src] || src);
-            const srcColor = t.type === 'transfer' ? 'text-slate-400' : (SOURCE_COLORS[src] || 'text-slate-400');
             const isInc = t.type === 'income';
             const isXfer = t.type === 'transfer';
+            const isPairedShadow = !!t._pairedImportId;
             const boxCls = isInc ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : isXfer ? 'bg-slate-200 dark:bg-slate-600 text-slate-500' : 'bg-red-100 dark:bg-red-900/30 text-red-600';
             const iconCls = isXfer ? 'fa-right-left' : `fa-arrow-${isInc ? 'down' : 'up'}`;
-            const amtCls = isInc ? 'text-green-600' : isXfer ? 'text-slate-500' : 'text-red-600';
+            const amtCls = isInc ? 'text-green-600' : isXfer ? 'text-slate-500' : isPairedShadow ? 'text-slate-400 line-through' : 'text-red-600';
             const sign = isInc ? '+' : isXfer ? '' : '-';
-            html += `<div class="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl group txn-row" data-txn-id="${t.id}" draggable="true">
+            const rowCls = isPairedShadow ? 'opacity-60' : '';
+            const srcTags = formatTxnSourceTagsHtml(t);
+            const lifeLogBtn = (!t._lifeLogEntryId && t.type === 'expense')
+              ? `<button onclick="addFinanceTxnToLifeLog('${t.id}')" class="p-2 text-purple-500" title="Add to Life Log"><i class="fas fa-book-open text-xs"></i></button>`
+              : '';
+            html += `<div class="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl group txn-row ${rowCls}" data-txn-id="${t.id}" draggable="true">
               <span class="cursor-grab text-slate-400 drag-handle"><i class="fas fa-grip-vertical text-sm"></i></span>
               <div class="w-10 h-10 flex-shrink-0 ${boxCls} rounded-lg flex items-center justify-center"><i class="fas ${iconCls}"></i></div>
-              <div class="flex-1 min-w-0"><p class="font-medium text-slate-900 dark:text-white text-sm truncate">${(t.description || '').replace(/</g, '&lt;')}</p><p class="text-xs text-slate-500">${t.category || ''}<span class="${srcColor}"> · ${srcLabel}</span></p></div>
+              <div class="flex-1 min-w-0"><p class="font-medium text-slate-900 dark:text-white text-sm truncate">${(t.description || '').replace(/</g, '&lt;')}</p><p class="text-xs text-slate-500">${t.category || ''} · ${srcTags}${isPairedShadow ? ' <span class="text-amber-500">(excluded from totals)</span>' : ''}</p></div>
               <p class="font-bold flex-shrink-0 ${amtCls}">${sign}${api.formatCurrency(t.amount)}</p>
               <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                ${lifeLogBtn}
                 <button onclick="editTxn('${t.id}')" class="p-2 text-blue-500" title="Edit"><i class="fas fa-pen text-xs"></i></button>
                 <button onclick="deleteTxn('${t.id}')" class="p-2 text-red-400" title="Delete"><i class="fas fa-trash text-xs"></i></button>
               </div></div>`;
@@ -183,6 +437,7 @@
       populateAccountFilter();
     };
     api.renderFinance.__patched = true;
+    window.__renderFinancePatched = api.renderFinance;
 
     document.getElementById('financeMonthPicker')?.addEventListener('change', (e) => {
       financeMonth = e.target.value;
@@ -334,10 +589,23 @@
   // ─── OFX / CSV Import ───
   const classifyImportRow = (signedAmt, desc, accountType) => {
     const amount = Math.abs(signedAmt);
-    let type = signedAmt >= 0 ? 'income' : 'expense';
+    let type;
     let category = 'Other';
     const isBank = typeof window.isBankCashAccount === 'function' && window.isBankCashAccount(accountType);
-    if (signedAmt < 0 && isBank && accountType !== 'credit_card' && looksLikeCcPayment(desc)) {
+
+    if (accountType === 'credit_card') {
+      // OFX credit cards: positive = purchase/charge, negative = payment/credit/refund
+      if (looksLikeCcPayment(desc) || signedAmt < 0) {
+        type = 'transfer';
+        category = 'Transfer';
+      } else {
+        type = 'expense';
+      }
+      return { type, category, amount };
+    }
+
+    type = signedAmt >= 0 ? 'income' : 'expense';
+    if (signedAmt < 0 && isBank && looksLikeCcPayment(desc)) {
       type = 'transfer';
       category = 'Transfer';
     }
@@ -360,7 +628,7 @@
   function importHintForAccount(accountId) {
     const a = (api.finance.accounts || []).find(x => x.id === accountId);
     if (!a) return 'Select the account this OFX file belongs to.';
-    if (a.type === 'credit_card') return 'Credit card import: each line is a purchase and counts toward spending.';
+    if (a.type === 'credit_card') return 'Credit card import: purchases count as spending. Statement payments/credits are transfers (not income).';
     if (typeof window.isBankCashAccount === 'function' && window.isBankCashAccount(a.type)) {
       return 'Bank import: income & bills count as spending/cash flow. CC statement payments auto-mark as transfers.';
     }
@@ -387,56 +655,122 @@
     return { txns, balances };
   }
 
-  function parseCsv(text) {
-    const lines = text.trim().split(/\r?\n/).filter(Boolean);
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-    return lines.slice(1).map(line => {
-      const cols = line.match(/("([^"]|"")*"|[^,]*)/g)?.map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"').trim()) || line.split(',');
-      const row = {};
-      headers.forEach((h, i) => { row[h.toLowerCase()] = (cols[i] || '').trim(); });
-      const amt = parseFloat(row.amount || row.debit || row.credit || row['transaction amount'] || '0') || 0;
-      const rawDate = row.date || row['transaction date'] || row.posted || '';
-      let date = rawDate;
-      if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(rawDate)) {
-        const [mo, da, yr] = rawDate.split('/');
-        date = `${yr.length === 2 ? '20' + yr : yr}-${mo.padStart(2, '0')}-${da.padStart(2, '0')}`;
-      }
-      return { date: date || api.getLocalDateString(), description: row.description || row.memo || row.payee || 'Import', amount: Math.abs(amt), type: amt >= 0 && !row.debit ? 'income' : 'expense', category: row.category || 'Other', _importHash: `${date}-${amt}-${row.description}` };
-    });
+  function parseCsvLine(line) {
+    const cols = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++; }
+          else inQuotes = false;
+        } else cur += ch;
+      } else if (ch === '"') inQuotes = true;
+      else if (ch === ',') { cols.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    cols.push(cur.trim());
+    return cols;
   }
 
-  function mergeImportedTransactions(rows, accountId, balances) {
-    api.finance.transactions = api.finance.transactions || [];
-    api.finance.settings = api.finance.settings || {};
-    const batchAt = Date.now();
-    api.finance.settings.lastImportBatchAt = batchAt;
-    let added = 0, skipped = 0;
-    rows.forEach(row => {
-      const hash = row._importHash || `${row.date}-${row.amount}-${row.description}`;
-      const exists = api.finance.transactions.some(t =>
-        t._importHash === hash || (t.date === row.date && t.amount === row.amount && t.description === row.description)
-      );
-      if (exists) { skipped++; return; }
-      api.finance.transactions.push({
-        id: api.generateId(), type: row.type, description: row.description, amount: row.amount,
-        category: row.category || 'Other', accountId: accountId || null, date: row.date,
-        createdAt: Date.now(), _importHash: hash, _importBatchAt: batchAt
-      });
-      added++;
-    });
-    if (accountId && balances?.ledger != null) {
-      const acct = (api.finance.accounts || []).find(a => a.id === accountId);
-      if (acct) {
-        acct.currentBalance = balances.ledger;
-        acct.balanceHistory = acct.balanceHistory || [];
-        acct.balanceHistory.push({ date: api.getLocalDateString(), balance: balances.ledger });
-      }
+  function normalizeCsvDate(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (mdy) {
+      const yr = mdy[3].length === 2 ? '20' + mdy[3] : mdy[3];
+      return `${yr}-${mdy[1].padStart(2, '0')}-${mdy[2].padStart(2, '0')}`;
     }
-    api.saveData('finance', api.finance);
-    api.renderFinance();
-    api.updateStats?.();
-    return { added, skipped };
+    return s;
+  }
+
+  function pickCsvField(row, keys) {
+    for (const k of keys) {
+      const v = row[k];
+      if (v != null && String(v).trim() !== '') return String(v).trim();
+    }
+    return '';
+  }
+
+  function parseMoneyCell(val) {
+    if (val == null || val === '') return 0;
+    const n = parseFloat(String(val).replace(/[$,\s]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  /** Debit/credit columns or signed Amount — bank vs card conventions differ. */
+  function csvSignedAmount(row, accountType) {
+    const debit = parseMoneyCell(row.debit);
+    const credit = parseMoneyCell(row.credit);
+    const amountCol = parseMoneyCell(row.amount || row['transaction amount'] || row['trans amount']);
+
+    if (debit && credit) return credit - debit;
+    if (accountType === 'credit_card') {
+      if (debit && !credit) return Math.abs(debit);
+      if (credit && !debit) return -Math.abs(credit);
+    } else {
+      if (debit && !credit) return -Math.abs(debit);
+      if (credit && !debit) return Math.abs(credit);
+    }
+    return amountCol;
+  }
+
+  function mapCsvCategory(row, type) {
+    const raw = pickCsvField(row, ['classification', 'category', 'type']);
+    if (!raw) return type === 'income' ? 'Salary' : 'Other';
+    const lower = raw.toLowerCase().replace(/&amp;/g, '&');
+    if (type === 'transfer' || lower.includes('credit card payment')) return 'Transfer';
+    if (lower.includes('paycheck') || lower.includes('payroll')) return 'Salary';
+    if (lower.includes('interest')) return 'Interest';
+    if (lower.includes('utilit')) return 'Utilities';
+    if (lower.includes('transfer')) return 'Transfer';
+    if (lower.includes('food') || lower.includes('restaurant')) return 'Food';
+    if (lower.includes('shipping')) return 'Shopping';
+    if (lower.includes('tax')) return 'Other';
+    return 'Other';
+  }
+
+  function parseCsv(text, accountType) {
+    const lines = text.trim().split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) return [];
+    const headers = parseCsvLine(lines[0]).map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+    const txns = [];
+    lines.slice(1).forEach((line, idx) => {
+      const cols = parseCsvLine(line);
+      const row = {};
+      headers.forEach((h, i) => { row[h] = (cols[i] || '').trim(); });
+      const rawDate = pickCsvField(row, ['date', 'transaction date', 'post date', 'posted', 'trans date', 'posting date']);
+      const date = normalizeCsvDate(rawDate) || api.getLocalDateString();
+      const desc = pickCsvField(row, ['description', 'memo', 'payee', 'name', 'merchant']) || 'Import';
+      const signedAmt = csvSignedAmount(row, accountType);
+      if (!signedAmt) return;
+      const { type, category, amount } = classifyImportRow(signedAmt, desc, accountType);
+      const cat = category === 'Other' ? mapCsvCategory(row, type) : category;
+      txns.push({
+        date, description: desc, amount, type, category: cat, signedAmt,
+        _importHash: `csv-${date}-${signedAmt}-${desc.slice(0, 40)}-${idx}`
+      });
+    });
+    return txns;
+  }
+
+  function detectImportFileKind(filename, text) {
+    const lower = (filename || '').toLowerCase();
+    if (lower.endsWith('.csv')) return 'csv';
+    if (lower.endsWith('.ofx') || lower.endsWith('.qfx')) return 'ofx';
+    const head = (text || '').trim().slice(0, 500).toLowerCase();
+    if (head.startsWith('<?xml') || head.includes('<ofx') || head.includes('<stmtrs')) return 'ofx';
+    if (/date.*(?:debit|credit|amount)|post date|transaction date|status,date,description/i.test(head)) return 'csv';
+    return 'ofx';
+  }
+
+  function defaultAccountForPreset(preset) {
+    const accts = api.finance.accounts || [];
+    if (preset === 'credit_card') return accts.find(a => a.type === 'credit_card')?.id || '';
+    if (preset === 'bank') return accts.find(a => ['checking', 'savings', 'cash'].includes(a.type))?.id || '';
+    return '';
   }
 
   function openImportModal(preset, preselectAccountId) {
@@ -445,9 +779,9 @@
       || (preset === 'credit_card' ? accts.find(a => a.type === 'credit_card')?.id : null)
       || (preset === 'bank' ? accts.find(a => ['checking', 'savings', 'cash'].includes(a.type))?.id : null)
       || '';
-    const title = preset === 'credit_card' ? 'Import credit card (OFX)' : preset === 'bank' ? 'Import bank account (OFX)' : 'Import transactions (OFX)';
+    const title = preset === 'credit_card' ? 'Import credit card (OFX/CSV)' : preset === 'bank' ? 'Import bank account (OFX/CSV)' : 'Import transactions (OFX/CSV)';
     api.openModal(title, `<div class="space-y-4">
-      <p class="text-sm text-slate-500">Download OFX/QFX from your bank or card issuer, then upload here.</p>
+      <p class="text-sm text-slate-500">Upload OFX/QFX or CSV from your bank or card issuer (e.g. NBKC Account History, card Year-to-date export).</p>
       <div><label class="block text-xs font-medium text-slate-500 mb-1">Target account</label>
       <select id="importAccount" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white">
         ${buildImportAccountSelect(defaultId, preset)}
@@ -456,17 +790,30 @@
       <input type="file" id="importFile" accept=".ofx,.qfx,.csv,.txt" class="w-full text-sm">
       <div id="importPreview" class="max-h-40 overflow-y-auto text-xs"></div>
       <button type="button" id="importConfirmBtn" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg" disabled>Import</button></div>`);
-    let parsedRows = [], parsedBalances = {}, rawOfxText = '';
+    let parsedRows = [], parsedBalances = {}, rawImportText = '', importFileKind = null;
+
+    const reparseForAccount = () => {
+      const acct = accts.find(a => a.id === document.getElementById('importAccount')?.value);
+      if (!rawImportText || !importFileKind) return;
+      if (importFileKind === 'csv') parsedRows = parseCsv(rawImportText, acct?.type);
+      else { const p = parseOfx(rawImportText, acct?.type); parsedRows = p.txns; parsedBalances = p.balances; }
+    };
+
     const refreshPreview = () => {
-      const acctId = document.getElementById('importAccount')?.value;
-      const acct = accts.find(a => a.id === acctId);
-      document.getElementById('importHint').textContent = importHintForAccount(acctId);
-      if (rawOfxText && !rawOfxText.toLowerCase().includes('.csv')) {
-        parsedRows = parseOfx(rawOfxText, acct?.type).txns;
+      const acctSel = document.getElementById('importAccount');
+      let acctId = acctSel?.value;
+      if (!acctId && preset) {
+        const autoId = defaultAccountForPreset(preset);
+        if (autoId && acctSel) { acctSel.value = autoId; acctId = autoId; }
       }
+      document.getElementById('importHint').textContent = importHintForAccount(acctId);
+      reparseForAccount();
+      const btn = document.getElementById('importConfirmBtn');
       if (!parsedRows.length) {
-        document.getElementById('importPreview').innerHTML = acctId ? '<p class="text-slate-400">Choose a file to preview</p>' : '<p class="text-amber-600">Select an account first</p>';
-        document.getElementById('importConfirmBtn').disabled = true;
+        document.getElementById('importPreview').innerHTML = rawImportText
+          ? '<p class="text-amber-600">No transactions parsed — check file format and target account type.</p>'
+          : (acctId ? '<p class="text-slate-400">Choose a file to preview</p>' : '<p class="text-amber-600">Select an account first</p>');
+        if (btn) { btn.disabled = true; btn.textContent = 'Import'; }
         return;
       }
       document.getElementById('importPreview').innerHTML = `<p class="font-medium mb-1">${parsedRows.length} transactions found</p>` +
@@ -480,26 +827,35 @@
           }
           return '';
         })();
-      document.getElementById('importConfirmBtn').disabled = !acctId;
+      if (btn) {
+        btn.disabled = !acctId;
+        btn.textContent = acctId ? `Import ${parsedRows.length} transaction${parsedRows.length === 1 ? '' : 's'}` : 'Select account above to import';
+      }
     };
     document.getElementById('importAccount')?.addEventListener('change', refreshPreview);
     document.getElementById('importFile').addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      rawOfxText = await file.text();
-      const lower = file.name.toLowerCase();
-      const acct = accts.find(a => a.id === document.getElementById('importAccount')?.value);
-      if (lower.endsWith('.csv')) parsedRows = parseCsv(rawOfxText);
-      else { const p = parseOfx(rawOfxText, acct?.type); parsedRows = p.txns; parsedBalances = p.balances; }
+      rawImportText = await file.text();
+      importFileKind = detectImportFileKind(file.name, rawImportText);
+      reparseForAccount();
       refreshPreview();
     });
     refreshPreview();
     document.getElementById('importConfirmBtn').addEventListener('click', () => {
       const acctId = document.getElementById('importAccount').value || null;
-      if (!acctId) return;
+      if (!acctId) {
+        api.addNotification?.('Select account', 'Choose which account this file belongs to before importing.', 'warning');
+        return;
+      }
+      reparseForAccount();
+      if (!parsedRows.length) {
+        api.addNotification?.('Import failed', 'No transactions could be parsed from this file.', 'warning');
+        return;
+      }
       const { added, skipped } = mergeImportedTransactions(parsedRows, acctId, parsedBalances);
       api.closeModal();
-      api.addNotification?.('Import complete', `Added ${added}, skipped ${skipped} duplicates`, 'info');
+      api.addNotification?.('Import complete', added ? `Added ${added} transaction${added === 1 ? '' : 's'}${skipped ? `, skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : ''}.` : `All ${skipped} row${skipped === 1 ? '' : 's'} already imported (duplicates skipped).`, added ? 'info' : 'warning');
       populateAccountFilter();
     });
   }
@@ -555,71 +911,172 @@
     api.addNotification?.(label, `Removed ${n} imported transaction${n === 1 ? '' : 's'}.`, n ? 'info' : 'warning');
   }
 
-  /** Merge Life Log duplicates into imports (import amount wins), then drop Life Log rows. */
+  /** Merge manual/Life Log duplicates into imports (import amount wins), drop manual rows only. */
   function dedupeLifeLogAgainstImports() {
     const txns = api.finance.transactions || [];
     const imported = txns.filter(isImportedTxn);
-    if (!imported.length) return { merged: 0, removed: 0 };
+    const manualSide = txns.filter(isManualSideTxn);
+    if (!imported.length || !manualSide.length) return { merged: 0, removed: 0 };
     const toRemove = new Set();
     const usedImportIds = new Set();
     let merged = 0;
-    txns.filter(t => t._lifeLogEntryId).forEach(llTxn => {
-      const imp = findImportMatchForLifeLog(llTxn, imported, usedImportIds);
+    manualSide.forEach(manualTxn => {
+      const imp = findImportMatchForManual(manualTxn, imported, usedImportIds);
       if (!imp) return;
-      enrichImportFromLifeLog(imp, llTxn);
+      mergeManualIntoImport(imp, manualTxn);
       usedImportIds.add(imp.id);
-      toRemove.add(llTxn.id);
+      toRemove.add(manualTxn.id);
       merged++;
     });
     if (!toRemove.size) return { merged: 0, removed: 0 };
     api.finance.transactions = txns.filter(t => !toRemove.has(t.id));
+    api.finance.transactions.forEach(t => {
+      if (t._pairedManualId && toRemove.has(t._pairedManualId)) delete t._pairedManualId;
+    });
     saveFinanceAndRefresh();
     return { merged, removed: toRemove.size };
   }
 
   function confirmDedupeLifeLog() {
-    if (!confirm('Merge Life Log finance entries into matching imports (same date & amount)? Import amounts are kept; categories/descriptions come from Life Log when imports are sparse. Duplicate Life Log rows are removed.')) return;
-    const { merged, removed } = dedupeLifeLogAgainstImports();
-    api.addNotification?.('Dedupe complete', merged ? `Merged ${merged} pair${merged === 1 ? '' : 's'}, removed ${removed} Life Log duplicate${removed === 1 ? '' : 's'}.` : 'No matching duplicates found.', merged ? 'info' : 'warning');
+    if (!confirm('Merge manual/Life Log entries into matching imports (same date & amount — names can differ)? Import amounts are kept. Duplicate manual rows are removed.')) return;
+    try {
+      const { merged, removed } = dedupeLifeLogAgainstImports();
+      notifyUser('Dedupe complete', merged ? `Merged ${merged} pair${merged === 1 ? '' : 's'}, removed ${removed} manual duplicate${removed === 1 ? '' : 's'}. Imports kept.` : 'No matching pairs found.', merged ? 'info' : 'warning');
+    } catch (err) {
+      console.error('Dedupe failed', err);
+      notifyUser('Dedupe failed', err.message || String(err), 'error');
+    }
   }
 
-  /** Enrich imports from matching Life Log entries without removing Life Log rows. */
+  /** For each bank/card import, apply Life Log name/category (same day + amount). Manual "Add to Finance" rows merge into the import. */
   function enrichImportsFromLifeLog() {
     const txns = api.finance.transactions || [];
-    const lifeLogTxns = txns.filter(t => t._lifeLogEntryId);
-    const imports = txns.filter(isImportedTxn);
-    if (!imports.length || !lifeLogTxns.length) return 0;
+    let changed = repairUnpairedDuplicates(txns);
+    const lifeSpend = getLifeLogSpendEntries();
+    const manualSide = txns.filter(t => isManualSideTxn(t) && !t._pairedImportId);
+    const imports = txns.filter(t => t.type === 'expense' && !t._pairedImportId && isImportedTxn(t));
     const usedLifeLogIds = new Set();
-    let enriched = 0;
+    let pairs = 0;
+
     imports.forEach(imp => {
-      let llTxn = null;
-      if (imp._lifeLogEntryId) {
-        llTxn = lifeLogTxns.find(x => x._lifeLogEntryId === imp._lifeLogEntryId);
+      const descBefore = String(imp.description || '').trim();
+      const catBefore = imp.category;
+      const linkBefore = imp._lifeLogEntryId;
+
+      // Manual row from "Also add to Finance" on same day + amount — merge onto import first
+      const manual = manualSide.find(m =>
+        sameDate(m.date, imp.date) &&
+        amountsMatch(txnSpendAmount(m), txnSpendAmount(imp))
+      );
+      if (manual && mergeManualIntoImport(imp, manual)) changed = true;
+
+      if (!imp._lifeLogEntryId) {
+        const entry = findLifeLogForTxn(imp, lifeSpend, usedLifeLogIds);
+        if (entry) {
+          usedLifeLogIds.add(entry.id);
+          if (applyLifeLogToTxn(imp, entry)) changed = true;
+          const manualByEntry = manualSide.find(m =>
+            !m._pairedImportId &&
+            m._lifeLogEntryId === entry.id &&
+            sameDate(m.date, imp.date) &&
+            amountsMatch(txnSpendAmount(m), txnSpendAmount(imp))
+          );
+          if (manualByEntry && mergeManualIntoImport(imp, manualByEntry)) changed = true;
+        }
       } else {
-        llTxn = findLifeLogMatchForImport(imp, lifeLogTxns, usedLifeLogIds);
-        if (llTxn) usedLifeLogIds.add(llTxn.id);
+        const entry = lifeSpend.find(e => e.id === imp._lifeLogEntryId);
+        if (entry) {
+          usedLifeLogIds.add(entry.id);
+          if (applyLifeLogToTxn(imp, entry)) changed = true;
+        }
       }
-      if (llTxn && enrichImportFromLifeLog(imp, llTxn)) enriched++;
+
+      if (
+        imp._lifeLogEntryId &&
+        (imp._lifeLogEntryId !== linkBefore ||
+          String(imp.description || '').trim() !== descBefore ||
+          imp.category !== catBefore)
+      ) {
+        pairs++;
+      }
     });
-    if (enriched) saveFinanceAndRefresh();
-    return enriched;
+
+    if (changed || pairs > 0) saveFinanceAndRefresh();
+    return { pairs, targets: imports.length, lifeLogEntries: lifeSpend.length };
   }
 
   function confirmEnrichFromLifeLog() {
-    if (!confirm('Fill in sparse import fields from matching Life Log entries (same date & amount)? Updates category when import is Other, short descriptions, and links to Life Log. Does not delete anything.')) return;
-    const n = enrichImportsFromLifeLog();
-    api.addNotification?.('Enrich complete', n ? `Updated ${n} imported transaction${n === 1 ? '' : 's'}.` : 'No imports needed enrichment (or no matches found).', n ? 'info' : 'warning');
+    if (!api) {
+      (window.showToast || alert)('Please wait', 'App is still loading — try again in a moment.', 'warning');
+      return;
+    }
+    setImportToolsStatus('Running enrich…', 'info');
+    try {
+      const { pairs, targets, lifeLogEntries } = enrichImportsFromLifeLog();
+      let msg;
+      if (pairs) {
+        msg = `Updated ${pairs} import${pairs === 1 ? '' : 's'} with Life Log names/categories. Open Finance → May 2026 to verify.`;
+      } else if (!lifeLogEntries) {
+        msg = 'No Life Log purchases or meals with an amount — log the item and dollar amount on the day you bought it, then run Enrich again.';
+      } else if (!targets) {
+        msg = 'No imported card/bank expenses found. Import your CSV/OFX first, then run Enrich.';
+      } else {
+        msg = `No matches for ${targets} import${targets === 1 ? '' : 's'} (${lifeLogEntries} Life Log purchase${lifeLogEntries === 1 ? '' : 's'}/meal${lifeLogEntries === 1 ? '' : 's'} with amounts). Need same date and same dollar amount — e.g. May 23 and $15.04.`;
+      }
+      notifyUser('Enrich complete', msg, pairs ? 'info' : 'warning');
+    } catch (err) {
+      console.error('Enrich failed', err);
+      notifyUser('Enrich failed', err.message || String(err), 'error');
+    }
   }
 
-  function markCcPaymentsAsTransfers() {
+  /** Fix CC imports misclassified before sign-aware logic (charges as income, payments as expense). */
+  function repairCcImportClassification() {
+    const accounts = api.finance.accounts || [];
     let n = 0;
     (api.finance.transactions || []).forEach(t => {
-      if (t.type === 'expense' && looksLikeCcPayment(t.description)) {
+      const acct = accounts.find(a => a.id === t.accountId);
+      const onCard = acct?.type === 'credit_card';
+      const signed = t._importSignedAmt;
+
+      if (looksLikeCcPayment(t.description)) {
+        if (t.type !== 'transfer') {
+          t.type = 'transfer';
+          t.category = 'Transfer';
+          n++;
+        }
+        return;
+      }
+
+      if (!onCard) return;
+
+      if (t.type === 'income') {
+        t.type = 'expense';
+        if (!t.category || t.category === 'Salary' || t.category === 'Interest') t.category = 'Other';
+        n++;
+        return;
+      }
+
+      if (t.type === 'expense' && signed != null && signed < 0) {
         t.type = 'transfer';
         t.category = 'Transfer';
         n++;
       }
     });
+    return n;
+  }
+
+  function markCcPaymentsAsTransfers() {
+    let n = 0;
+    (api.finance.transactions || []).forEach(t => {
+      if (!looksLikeCcPayment(t.description)) return;
+      if (t.type !== 'transfer') {
+        t.type = 'transfer';
+        t.category = 'Transfer';
+        n++;
+      }
+    });
+    n += repairCcImportClassification();
     if (n) {
       api.saveData('finance', api.finance);
       api.renderFinance();
@@ -630,9 +1087,29 @@
   }
 
   function confirmMarkCcTransfers() {
-    if (!confirm('Mark imported CC statement payments as transfers? They will stay visible but won\'t count toward spending totals.')) return;
+    if (!confirm('Fix credit card classification?\n\n• Card purchases won\'t count as income\n• Statement payments on bank or card become transfers (matches money leaving checking)\n• Neither affects spending totals')) return;
     const n = markCcPaymentsAsTransfers();
-    api.addNotification?.('CC payments updated', n ? `Marked ${n} payment${n === 1 ? '' : 's'} as transfers.` : 'No matching CC payments found — try editing descriptions manually to Transfer.', n ? 'info' : 'warning');
+    notifyUser('CC classification fixed', n ? `Updated ${n} transaction${n === 1 ? '' : 's'}.` : 'Nothing to fix — already classified.', n ? 'info' : 'warning');
+  }
+
+  function wireSettingsActionButtons() {
+    if (wireSettingsActionButtons.__done) return;
+    wireSettingsActionButtons.__done = true;
+    const actions = {
+      'enrich-from-lifelog': confirmEnrichFromLifeLog,
+      'dedupe-imports': confirmDedupeLifeLog,
+      'mark-cc-transfers': confirmMarkCcTransfers,
+      'undo-last-import': () => confirmRemoveImport(true),
+      'remove-all-imports': () => confirmRemoveImport(false)
+    };
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-lifeerp-action]');
+      if (!btn) return;
+      const fn = actions[btn.dataset.lifeerpAction];
+      if (!fn) return;
+      e.preventDefault();
+      fn();
+    });
   }
 
   // ─── Command palette ───
@@ -871,12 +1348,13 @@
       (sa.transactions || []).forEach(st => {
         const sfinId = st.id || `${st.posted}-${st.amount}-${st.description}`;
         if (api.finance.transactions.some(t => t._sfinId === sfinId)) return;
-        const amt = Math.abs(parseFloat(st.amount) || 0);
+        const signedAmt = parseFloat(st.amount) || 0;
+        const desc = st.description || st.payee || 'Bank import';
+        const { type, category, amount } = classifyImportRow(signedAmt, desc, acct.type);
         api.finance.transactions.push({
-          id: api.generateId(), type: parseFloat(st.amount) >= 0 ? 'income' : 'expense',
-          description: st.description || st.payee || 'Bank import', amount: amt,
-          category: 'Other', accountId: acct.id, date: st.posted ? st.posted.slice(0, 10) : api.getLocalDateString(),
-          createdAt: Date.now(), _sfinId: sfinId, _importHash: sfinId
+          id: api.generateId(), type, description: desc, amount,
+          category, accountId: acct.id, date: st.posted ? st.posted.slice(0, 10) : api.getLocalDateString(),
+          createdAt: Date.now(), _sfinId: sfinId, _importHash: sfinId, _importSignedAmt: signedAmt
         });
         added++;
       });
@@ -925,6 +1403,8 @@
   }
 
   // ─── Init ───
+  wireSettingsActionButtons();
+
   window.initLifeERPExtensions = function (lifeApi) {
     api = lifeApi;
     financeMonth = getFinanceMonth();
@@ -934,6 +1414,9 @@
       document.getElementById('financeAutoBalance').checked = !!api.finance.settings?.autoUpdateBalance;
     }
     patchFinance();
+    const repaired = repairUnpairedDuplicates(api.finance.transactions || []);
+    if (repaired) api.saveData('finance', api.finance);
+    api.renderFinance();
     patchCommandPalette();
     patchTasksForRecurrence();
     patchDashboardWidgets();
@@ -954,12 +1437,8 @@
     });
     document.getElementById('weeklyReviewBtn')?.addEventListener('click', openWeeklyReview);
     document.getElementById('weeklyReviewCard')?.addEventListener('click', openWeeklyReview);
-    document.getElementById('undoLastImportBtn')?.addEventListener('click', () => confirmRemoveImport(true));
-    document.getElementById('removeAllImportsBtn')?.addEventListener('click', () => confirmRemoveImport(false));
-    document.getElementById('dedupeLifeLogImportsBtn')?.addEventListener('click', confirmDedupeLifeLog);
-    document.getElementById('enrichFromLifeLogBtn')?.addEventListener('click', confirmEnrichFromLifeLog);
-    document.getElementById('markCcTransfersBtn')?.addEventListener('click', confirmMarkCcTransfers);
     window.renderBankSyncUI = renderBankSyncUI;
-    window.LifeERPImport = { mergeImportedTransactions, mergeSimpleFinData, applyBalanceFromTxn, removeImportedTransactions, dedupeLifeLogAgainstImports, enrichImportsFromLifeLog };
+    window.LifeERPImport = { mergeImportedTransactions, mergeSimpleFinData, applyBalanceFromTxn, removeImportedTransactions, dedupeLifeLogAgainstImports, enrichImportsFromLifeLog, repairCcImportClassification, markCcPaymentsAsTransfers };
+    window.LifeERPSettings = { enrich: confirmEnrichFromLifeLog, dedupe: confirmDedupeLifeLog };
   };
 })();

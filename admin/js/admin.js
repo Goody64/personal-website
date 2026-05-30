@@ -499,6 +499,25 @@ if (document.getElementById('mainContent')) {
   const saveNotifications = (list) => {
     localStorage.setItem(STORAGE_KEYS.notifications, JSON.stringify(list));
   };
+  const showToast = (title, message, type = 'info', ms = 6000) => {
+    const host = document.getElementById('lifeerpToastHost');
+    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (!host) {
+      alert(`${title}\n\n${message}`);
+      return;
+    }
+    const border = type === 'warning' ? 'border-amber-500' : type === 'error' ? 'border-red-500' : 'border-blue-500';
+    const el = document.createElement('div');
+    el.className = `pointer-events-auto bg-white dark:bg-slate-800 border-l-4 ${border} shadow-xl rounded-lg p-4 transition-opacity duration-300`;
+    el.innerHTML = `<p class="font-semibold text-sm text-slate-900 dark:text-white">${esc(title)}</p><p class="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">${esc(message)}</p>`;
+    host.appendChild(el);
+    setTimeout(() => {
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 320);
+    }, ms);
+  };
+  window.showToast = showToast;
+
   const addNotification = (title, message, type = 'info') => {
     const list = getNotifications();
     list.unshift({ id: generateId(), title, message, type, read: false, createdAt: Date.now() });
@@ -2299,7 +2318,8 @@ if (document.getElementById('mainContent')) {
   // Finance
   // ========================================
   const TXN_CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Housing', 'Utilities', 'Salary', 'Interest', 'Transfer', 'Other'];
-  const isSpendingExpense = (t) => t.type === 'expense';
+  const isSpendingExpense = (t) => t.type === 'expense' && !t._pairedImportId;
+  const isCountableIncome = (t) => t.type === 'income' && !t._pairedImportId;
   const ACCOUNT_TYPES = ['checking', 'savings', 'credit_card', 'brokerage', 'cash', 'other'];
   const ACCOUNT_TYPE_LABELS = { checking: 'Checking', savings: 'Savings', credit_card: 'Credit card', brokerage: 'Brokerage', cash: 'Cash', other: 'Other' };
   const isBankCashAccount = (type) => ['checking', 'savings', 'cash'].includes(type);
@@ -2343,7 +2363,14 @@ if (document.getElementById('mainContent')) {
     if (tab === 'analytics') renderAnalytics();
   };
 
-  const renderFinance = () => {
+  let renderFinance = () => {
+    if (typeof window.__renderFinancePatched === 'function') {
+      return window.__renderFinancePatched();
+    }
+    renderFinanceAllTime();
+  };
+
+  const renderFinanceAllTime = () => {
     const container = document.getElementById('transactionsContainer');
     const txns = finance.transactions || [];
     
@@ -2502,6 +2529,7 @@ if (document.getElementById('mainContent')) {
           <input type="url" id="txnReceiptUrl" placeholder="https://..." value="${(t.receiptUrl || '').replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
         <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
           <input type="date" id="txnDate" value="${t.date || getLocalDateString()}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        ${t._lifeLogEntryId ? '<p class="text-xs text-purple-500"><i class="fas fa-link mr-1"></i>Linked to Life Log</p>' : (t.type === 'expense' ? '<button type="button" id="txnAddToLifeLogBtn" class="w-full py-2 border border-purple-300 dark:border-purple-600 text-purple-600 dark:text-purple-400 font-medium rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20"><i class="fas fa-book-open mr-2"></i>Add to Life Log</button>' : '')}
         <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-save mr-2"></i>Save</button>
       </form>
     `);
@@ -2528,6 +2556,7 @@ if (document.getElementById('mainContent')) {
               le.data.amount = tx.amount;
               le.date = tx.date;
               if (le.type === 'purchase') le.data.financeCategory = tx.category;
+              if (le.type === 'meal') le.data.description = tx.description;
               saveData('lifeLog', lifeLog);
               renderCalendar();
               renderDayDetail();
@@ -2539,6 +2568,42 @@ if (document.getElementById('mainContent')) {
         }
       }
     });
+    document.getElementById('txnAddToLifeLogBtn')?.addEventListener('click', () => addFinanceTxnToLifeLog(id));
+  };
+
+  window.addFinanceTxnToLifeLog = (txnId) => {
+    const tx = finance.transactions.find(t => t.id === txnId);
+    if (!tx) return;
+    if (tx._lifeLogEntryId) {
+      alert('This transaction is already linked to Life Log.');
+      return;
+    }
+    if (tx.type !== 'expense') {
+      alert('Only expenses can be added to Life Log.');
+      return;
+    }
+    const entryId = generateId();
+    const date = tx.date || getLocalDateString();
+    const isMeal = tx.category === 'Food';
+    const entry = {
+      id: entryId,
+      type: isMeal ? 'meal' : 'purchase',
+      date,
+      data: isMeal
+        ? { meal: 'Other', description: tx.description || '', restaurant: '', amount: tx.amount, addToFinance: false, notes: '' }
+        : { item: tx.description || 'Purchase', amount: tx.amount, store: '', addToFinance: false, financeCategory: tx.category || 'Shopping', notes: '' },
+      createdAt: Date.now()
+    };
+    lifeLog.push(entry);
+    tx._lifeLogEntryId = entryId;
+    tx._fromLifeLog = entry.type;
+    saveData('lifeLog', lifeLog);
+    saveData('finance', finance);
+    renderCalendar();
+    renderDayDetail();
+    renderFinance();
+    updateStats();
+    closeModal();
   };
 
   window.deleteTxn = (id) => {
@@ -2720,8 +2785,8 @@ if (document.getElementById('mainContent')) {
       container.innerHTML = `<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-5 mb-4 text-sm text-slate-600 dark:text-slate-300">
         <p class="font-medium text-slate-900 dark:text-white mb-2"><i class="fas fa-lightbulb text-amber-500 mr-2"></i>Set up bank + credit card accounts</p>
         <ul class="list-disc ml-5 space-y-1 text-xs">
-          <li><strong>Checking / savings</strong> — import OFX for income, bills, and cash flow. CC statement payments become transfers.</li>
-          <li><strong>Credit card</strong> — import OFX for individual purchases (your real spending).</li>
+          <li><strong>Checking / savings</strong> — import OFX for income, bills, and cash flow. CC statement payments become transfers (not spending).</li>
+          <li><strong>Credit card</strong> — import OFX for purchases (spending). Payments/credits on the card are transfers, not income.</li>
         </ul></div>
         <div class="bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 text-center text-slate-400">
         <i class="fas fa-university text-4xl mb-3 opacity-50"></i>
@@ -3104,7 +3169,7 @@ if (document.getElementById('mainContent')) {
       const m = d.slice(0, 7);
       if (m) {
         if (!byMonth[m]) byMonth[m] = { income: 0, byCat: {} };
-        if (t.type === 'income') byMonth[m].income += t.amount || 0;
+        if (isCountableIncome(t)) byMonth[m].income += t.amount || 0;
         else if (isSpendingExpense(t)) {
           const c = t.category || 'Other';
           byMonth[m].byCat[c] = (byMonth[m].byCat[c] || 0) + (t.amount || 0);
@@ -3308,7 +3373,7 @@ if (document.getElementById('mainContent')) {
     const avgGoals = goals.length ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length) : 0;
     const maxStreak = habits.length ? Math.max(...habits.map(h => h.streak || 0)) : 0;
     const txns = finance.transactions || [];
-    const balance = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0) - txns.filter(isSpendingExpense).reduce((s, t) => s + t.amount, 0);
+    const balance = txns.filter(isCountableIncome).reduce((s, t) => s + t.amount, 0) - txns.filter(isSpendingExpense).reduce((s, t) => s + t.amount, 0);
     
     document.getElementById('statTasks')?.textContent && (document.getElementById('statTasks').textContent = activeTasks);
     document.getElementById('statGoals')?.textContent && (document.getElementById('statGoals').textContent = avgGoals + '%');
@@ -3560,6 +3625,8 @@ if (document.getElementById('mainContent')) {
   const gsInput = document.getElementById('globalSearchInput');
   if (gsInput) {
     let gsTimer = null;
+    gsInput.addEventListener('focus', () => { gsInput.removeAttribute('readonly'); });
+    gsInput.addEventListener('mousedown', () => { gsInput.removeAttribute('readonly'); });
     gsInput.addEventListener('input', () => { clearTimeout(gsTimer); gsTimer = setTimeout(() => runGlobalSearch(gsInput.value), 120); });
     gsInput.addEventListener('focus', () => { if (gsInput.value.trim()) runGlobalSearch(gsInput.value); });
     gsInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') { gsInput.value = ''; closeGlobalSearch(); gsInput.blur(); } });
@@ -3573,8 +3640,8 @@ if (document.getElementById('mainContent')) {
     const tag = (e.target?.tagName || '').toLowerCase();
     const typing = tag === 'input' || tag === 'textarea' || e.target?.isContentEditable;
     const modalOpen = !document.getElementById('modalOverlay')?.classList.contains('hidden');
-    if (e.key === '/' && !typing && !modalOpen) { e.preventDefault(); gsInput?.focus(); }
-    else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); gsInput?.focus(); }
+    if (e.key === '/' && !typing && !modalOpen) { e.preventDefault(); gsInput?.removeAttribute('readonly'); gsInput?.focus(); }
+    else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); gsInput?.removeAttribute('readonly'); gsInput?.focus(); }
     else if (e.key.toLowerCase() === 'n' && !typing && !modalOpen && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); openLogModal(); }
   });
   
@@ -3898,7 +3965,6 @@ if (document.getElementById('mainContent')) {
   renderGoals();
   renderHabits();
   renderChores();
-  renderFinance();
   renderJournal();
   renderCalendar();
   renderDayDetail();
@@ -3908,7 +3974,7 @@ if (document.getElementById('mainContent')) {
 
   // Extensions module (finance depth, import, palette, bank sync, etc.)
   if (typeof window.initLifeERPExtensions === 'function') {
-    window.initLifeERPExtensions({
+    const lifeApi = {
       get finance() { return finance; },
       get tasks() { return tasks; },
       get goals() { return goals; },
@@ -3921,9 +3987,10 @@ if (document.getElementById('mainContent')) {
       addTaskModal, addHabitModal: window.addHabitModal, addChoreModal: window.addChoreModal,
       attachTxnDragListeners, sortTxns, buildSearchIndex, runGlobalSearch,
       formatCurrency, formatDate, formatDateShort, getLocalDateString, parseLocalDate,
-      generateId, parseAmount, addNotification, calculateStreak,
+      generateId, parseAmount, addNotification, showToast, calculateStreak,
       TXN_CATEGORIES
-    });
+    };
+    window.initLifeERPExtensions(lifeApi);
   }
   
   // App ready: hide loading, show main content, restore section from hash
