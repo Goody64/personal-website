@@ -61,6 +61,61 @@
 
   const looksLikeCcPayment = (desc) => CC_PAYMENT_RE.test(String(desc || ''));
 
+  const AMT_MATCH_EPS = 0.02;
+
+  const amountsMatch = (a, b) => Math.abs((a || 0) - (b || 0)) < AMT_MATCH_EPS;
+
+  const isImportedTxn = (t) => !!(t._importHash || t._sfinId);
+
+  const isWeakCategory = (cat) => !cat || cat === 'Other';
+
+  const isWeakDescription = (desc) => {
+    const d = (String(desc || '')).trim();
+    return !d || d === 'Import' || d.length < 5;
+  };
+
+  /** Copy Life Log detail onto an import; import amount is never overwritten. */
+  function enrichImportFromLifeLog(importTxn, lifeLogTxn) {
+    let changed = false;
+    if (lifeLogTxn._lifeLogEntryId && !importTxn._lifeLogEntryId) {
+      importTxn._lifeLogEntryId = lifeLogTxn._lifeLogEntryId;
+      if (lifeLogTxn._fromLifeLog) importTxn._fromLifeLog = lifeLogTxn._fromLifeLog;
+      changed = true;
+    }
+    if (isWeakCategory(importTxn.category) && lifeLogTxn.category && !isWeakCategory(lifeLogTxn.category)) {
+      importTxn.category = lifeLogTxn.category;
+      changed = true;
+    }
+    if (isWeakDescription(importTxn.description) && lifeLogTxn.description && lifeLogTxn.description.trim().length > (importTxn.description || '').trim().length) {
+      importTxn.description = lifeLogTxn.description;
+      changed = true;
+    }
+    return changed;
+  }
+
+  function findImportMatchForLifeLog(lifeLogTxn, imported, usedImportIds) {
+    return imported.find(imp =>
+      !usedImportIds.has(imp.id) &&
+      imp.date === lifeLogTxn.date &&
+      amountsMatch(imp.amount, lifeLogTxn.amount)
+    );
+  }
+
+  function findLifeLogMatchForImport(importTxn, lifeLogTxns, usedLifeLogIds) {
+    return lifeLogTxns.find(ll =>
+      !usedLifeLogIds.has(ll.id) &&
+      ll.date === importTxn.date &&
+      amountsMatch(ll.amount, importTxn.amount)
+    );
+  }
+
+  function saveFinanceAndRefresh() {
+    api.saveData('finance', api.finance);
+    api.renderFinance();
+    api.updateStats?.();
+    api.renderDashboardWidgets?.();
+  }
+
   // ─── Finance: month filter, budgets, recurring, balance sync ───
   function patchFinance() {
     const origRender = api.renderFinance;
@@ -500,32 +555,60 @@
     api.addNotification?.(label, `Removed ${n} imported transaction${n === 1 ? '' : 's'}.`, n ? 'info' : 'warning');
   }
 
-  /** Drop Life Log finance rows that duplicate a bank/file import (same date + amount). */
+  /** Merge Life Log duplicates into imports (import amount wins), then drop Life Log rows. */
   function dedupeLifeLogAgainstImports() {
     const txns = api.finance.transactions || [];
-    const imported = txns.filter(t => t._importHash || t._sfinId);
-    if (!imported.length) return 0;
-    const before = txns.length;
-    api.finance.transactions = txns.filter(t => {
-      if (!t._lifeLogEntryId) return true;
-      return !imported.some(imp =>
-        imp.date === t.date && Math.abs((imp.amount || 0) - (t.amount || 0)) < 0.02
-      );
+    const imported = txns.filter(isImportedTxn);
+    if (!imported.length) return { merged: 0, removed: 0 };
+    const toRemove = new Set();
+    const usedImportIds = new Set();
+    let merged = 0;
+    txns.filter(t => t._lifeLogEntryId).forEach(llTxn => {
+      const imp = findImportMatchForLifeLog(llTxn, imported, usedImportIds);
+      if (!imp) return;
+      enrichImportFromLifeLog(imp, llTxn);
+      usedImportIds.add(imp.id);
+      toRemove.add(llTxn.id);
+      merged++;
     });
-    const removed = before - api.finance.transactions.length;
-    if (removed) {
-      api.saveData('finance', api.finance);
-      api.renderFinance();
-      api.updateStats?.();
-      api.renderDashboardWidgets?.();
-    }
-    return removed;
+    if (!toRemove.size) return { merged: 0, removed: 0 };
+    api.finance.transactions = txns.filter(t => !toRemove.has(t.id));
+    saveFinanceAndRefresh();
+    return { merged, removed: toRemove.size };
   }
 
   function confirmDedupeLifeLog() {
-    if (!confirm('Remove Life Log finance entries that match a bank/file import on the same date and amount? Manual entries are not touched.')) return;
-    const n = dedupeLifeLogAgainstImports();
-    api.addNotification?.('Dedupe complete', n ? `Removed ${n} duplicate Life Log entr${n === 1 ? 'y' : 'ies'}.` : 'No matching duplicates found.', n ? 'info' : 'warning');
+    if (!confirm('Merge Life Log finance entries into matching imports (same date & amount)? Import amounts are kept; categories/descriptions come from Life Log when imports are sparse. Duplicate Life Log rows are removed.')) return;
+    const { merged, removed } = dedupeLifeLogAgainstImports();
+    api.addNotification?.('Dedupe complete', merged ? `Merged ${merged} pair${merged === 1 ? '' : 's'}, removed ${removed} Life Log duplicate${removed === 1 ? '' : 's'}.` : 'No matching duplicates found.', merged ? 'info' : 'warning');
+  }
+
+  /** Enrich imports from matching Life Log entries without removing Life Log rows. */
+  function enrichImportsFromLifeLog() {
+    const txns = api.finance.transactions || [];
+    const lifeLogTxns = txns.filter(t => t._lifeLogEntryId);
+    const imports = txns.filter(isImportedTxn);
+    if (!imports.length || !lifeLogTxns.length) return 0;
+    const usedLifeLogIds = new Set();
+    let enriched = 0;
+    imports.forEach(imp => {
+      let llTxn = null;
+      if (imp._lifeLogEntryId) {
+        llTxn = lifeLogTxns.find(x => x._lifeLogEntryId === imp._lifeLogEntryId);
+      } else {
+        llTxn = findLifeLogMatchForImport(imp, lifeLogTxns, usedLifeLogIds);
+        if (llTxn) usedLifeLogIds.add(llTxn.id);
+      }
+      if (llTxn && enrichImportFromLifeLog(imp, llTxn)) enriched++;
+    });
+    if (enriched) saveFinanceAndRefresh();
+    return enriched;
+  }
+
+  function confirmEnrichFromLifeLog() {
+    if (!confirm('Fill in sparse import fields from matching Life Log entries (same date & amount)? Updates category when import is Other, short descriptions, and links to Life Log. Does not delete anything.')) return;
+    const n = enrichImportsFromLifeLog();
+    api.addNotification?.('Enrich complete', n ? `Updated ${n} imported transaction${n === 1 ? '' : 's'}.` : 'No imports needed enrichment (or no matches found).', n ? 'info' : 'warning');
   }
 
   function markCcPaymentsAsTransfers() {
@@ -874,8 +957,9 @@
     document.getElementById('undoLastImportBtn')?.addEventListener('click', () => confirmRemoveImport(true));
     document.getElementById('removeAllImportsBtn')?.addEventListener('click', () => confirmRemoveImport(false));
     document.getElementById('dedupeLifeLogImportsBtn')?.addEventListener('click', confirmDedupeLifeLog);
+    document.getElementById('enrichFromLifeLogBtn')?.addEventListener('click', confirmEnrichFromLifeLog);
     document.getElementById('markCcTransfersBtn')?.addEventListener('click', confirmMarkCcTransfers);
     window.renderBankSyncUI = renderBankSyncUI;
-    window.LifeERPImport = { mergeImportedTransactions, mergeSimpleFinData, applyBalanceFromTxn, removeImportedTransactions };
+    window.LifeERPImport = { mergeImportedTransactions, mergeSimpleFinData, applyBalanceFromTxn, removeImportedTransactions, dedupeLifeLogAgainstImports, enrichImportsFromLifeLog };
   };
 })();
