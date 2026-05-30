@@ -1,0 +1,15 @@
+User-agent: *
+Disallow: /admin/
+
+# Block common SEO/scraper bots from the whole site (polite crawlers only).
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow, noarchive">
   <title>Dashboard | Life ERP</title>
   
   <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
@@ -123,6 +124,10 @@
         <a href="#habits" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="habits">
           <i class="fas fa-sync-alt w-5 text-center"></i>
           <span class="sidebar-text">Habits</span>
+        </a>
+        <a href="#chores" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="chores">
+          <i class="fas fa-broom w-5 text-center"></i>
+          <span class="sidebar-text">Chores</span>
         </a>
         <p class="sidebar-text text-xs text-slate-500 uppercase tracking-wider mt-6 mb-2 px-3">Life Tracking</p>
         <a href="#lifelog" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-800 transition-colors" data-section="lifelog">
@@ -405,6 +410,24 @@
               <button id="addFirstHabit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                 <i class="fas fa-plus mr-2"></i>Create Habit
               </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Chores Section -->
+        <section id="chores" class="content-section hidden">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Chores</h1>
+            <button id="addChoreBtn" class="px-4 py-2.5 gradient-bg text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2">
+              <i class="fas fa-plus"></i>
+              <span>Add Chore</span>
+            </button>
+          </div>
+          <div id="choresContainer">
+            <div class="text-center py-16 text-slate-400">
+              <i class="fas fa-broom text-5xl mb-4 opacity-50"></i>
+              <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No chores yet</h3>
+              <p class="mb-4">Track recurring chores and check them off as you go</p>
             </div>
           </div>
         </section>

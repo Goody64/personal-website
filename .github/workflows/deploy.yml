@@ -26,13 +26,16 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SIGNUP_ACCESS_KEY: ${{ secrets.SIGNUP_ACCESS_KEY }}
         run: |
           node -e "
             const fs = require('fs');
             const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY)
               ? { url: process.env.SUPABASE_URL, anonKey: process.env.SUPABASE_ANON_KEY }
               : null;
-            const out = supabase ? 'const SUPABASE_CONFIG = ' + JSON.stringify(supabase, null, 2) + ';' : 'const SUPABASE_CONFIG = null;';
+            const signupKey = process.env.SIGNUP_ACCESS_KEY || '';
+            const out = (supabase ? 'const SUPABASE_CONFIG = ' + JSON.stringify(supabase, null, 2) + ';' : 'const SUPABASE_CONFIG = null;')
+              + '\n' + 'const SIGNUP_ACCESS_KEY = ' + JSON.stringify(signupKey) + ';';
             fs.writeFileSync('admin/js/admin-config.js', out);
           "
 

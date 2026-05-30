@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
   tasks: 'lifeErp_tasks',
   goals: 'lifeErp_goals',
   habits: 'lifeErp_habits',
+  chores: 'lifeErp_chores',
   finance: 'lifeErp_finance',
   journal: 'lifeErp_journal',
   lifeLog: 'lifeErp_lifeLog',
@@ -96,6 +97,7 @@ const ACTIVITY_TYPES = {
     fields: [
       { key: 'title', label: 'Book Title', type: 'text', required: true },
       { key: 'pages', label: 'Pages Read', type: 'number' },
+      { key: 'duration', label: 'Time (min)', type: 'number' },
       { key: 'finished', label: 'Finished Book', type: 'checkbox' },
       { key: 'repeat', label: 'Re-read # (0=first, 1+=which re-read)', type: 'number' },
       { key: 'notes', label: 'Notes', type: 'textarea' }
@@ -450,6 +452,7 @@ if (document.getElementById('mainContent')) {
   let tasks = data ? (data.tasks ?? []) : (getFromStorage(STORAGE_KEYS.tasks) || []);
   let goals = data ? (data.goals ?? []) : (getFromStorage(STORAGE_KEYS.goals) || []);
   let habits = data ? (data.habits ?? []) : (getFromStorage(STORAGE_KEYS.habits) || []);
+  let chores = data ? (data.chores ?? []) : (getFromStorage(STORAGE_KEYS.chores) || []);
   let finance = data ? (data.finance ?? { transactions: [], accounts: [] }) : (getFromStorage(STORAGE_KEYS.finance) || { transactions: [], accounts: [] });
   finance.transactions = finance.transactions || [];
   finance.accounts = finance.accounts || [];
@@ -564,6 +567,7 @@ if (document.getElementById('mainContent')) {
     tasks: 'Tasks',
     goals: 'Goals',
     habits: 'Habits',
+    chores: 'Chores',
     lifelog: 'Life Log',
     library: 'Library',
     finance: 'Finance',
@@ -586,6 +590,7 @@ if (document.getElementById('mainContent')) {
     document.title = (SECTION_TITLES[id] || 'Dashboard') + ' | Life ERP';
     
     // Render section-specific content
+    if (id === 'chores') renderChores();
     if (id === 'lifelog') { renderCalendar(); renderDayDetail(); }
     if (id === 'library') renderLibrary();
     if (id === 'finance') renderFinance();
@@ -634,7 +639,15 @@ if (document.getElementById('mainContent')) {
   window.openModal = openModal;
   window.closeModal = closeModal;
   document.getElementById('modalClose')?.addEventListener('click', closeModal);
-  modalOverlay?.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+  // Only treat a click on the backdrop as "dismiss" when the gesture both started
+  // and ended on the overlay. This prevents a text-selection drag inside an input
+  // from cancelling the modal when the mouse is released over the backdrop.
+  let modalMouseDownTarget = null;
+  modalOverlay?.addEventListener('mousedown', (e) => { modalMouseDownTarget = e.target; });
+  modalOverlay?.addEventListener('click', (e) => {
+    if (e.target === modalOverlay && modalMouseDownTarget === modalOverlay) closeModal();
+    modalMouseDownTarget = null;
+  });
   
   // ========================================
   // Life Log - Core Functions
@@ -897,9 +910,15 @@ if (document.getElementById('mainContent')) {
       } else {
         // Individual entries for other types
         typeEntries.forEach(e => {
-          const mainField = t.fields[0]?.key;
-          const mainValue = (e.data[mainField] || 'Entry').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          const secondaryInfo = t.fields.slice(1, 3).map(f => e.data[f.key]).filter(Boolean).join(' · ');
+          let mainValue, secondaryInfo;
+          if (type === 'work') {
+            mainValue = (e.data.title || e.data.project || 'Work session').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            secondaryInfo = [e.data.category, e.data.subtype, e.data.project].filter(Boolean).join(' · ');
+          } else {
+            const mainField = t.fields[0]?.key;
+            mainValue = (e.data[mainField] || 'Entry').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            secondaryInfo = t.fields.slice(1, 3).map(f => e.data[f.key]).filter(Boolean).join(' · ');
+          }
           const hasNotes = e.data.notes || (t.fields.some(f => f.key === 'content') && e.data.content);
           
           html += `
@@ -1063,6 +1082,8 @@ if (document.getElementById('mainContent')) {
           let stepMin = '';
           if (f.key === 'amount') stepMin = ' min="0" step="0.01"';
           else if (f.key === 'repeat') stepMin = ' min="0" step="1"';
+          else if (f.key === 'duration' || f.key === 'pages') stepMin = ' min="0" step="1"';
+          else if (f.key === 'value' && type === 'health') stepMin = ' step="0.1"';
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
             <input type="${f.type}" id="field_${f.key}" ${f.required ? 'required' : ''}${stepMin} class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>`;
         }
@@ -1164,6 +1185,7 @@ if (document.getElementById('mainContent')) {
       renderDayDetail();
       renderFinance();
       updateStats();
+      if (type === 'health' && document.getElementById('health')) renderHealthSection();
       closeModal();
     });
   };
@@ -1223,6 +1245,8 @@ if (document.getElementById('mainContent')) {
           let stepMin = '';
           if (f.key === 'amount') stepMin = ' min="0" step="0.01"';
           else if (f.key === 'repeat') stepMin = ' min="0" step="1"';
+          else if (f.key === 'duration' || f.key === 'pages') stepMin = ' min="0" step="1"';
+          else if (f.key === 'value' && type === 'health') stepMin = ' step="0.1"';
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
             <input type="${f.type}" id="edit_field_${f.key}" ${f.required ? 'required' : ''}${stepMin} value="${valStr.replace(/"/g, '&quot;')}" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>`;
         }
@@ -1310,6 +1334,7 @@ if (document.getElementById('mainContent')) {
       renderCalendar();
       renderDayDetail();
       updateStats();
+      if (type === 'health' && document.getElementById('health')) renderHealthSection();
       closeModal();
     });
   };
@@ -1336,9 +1361,12 @@ if (document.getElementById('mainContent')) {
     let filtered = [];
     if (type === 'work') {
       if (groupKey.includes('|')) {
-        const [cat, sub] = groupKey.split('|');
-        filtered = lifeLog.filter(e => e.type === type && (e.data.category || 'Job') === cat && (e.data.subtype || 'Other') === sub);
+        const idx = groupKey.indexOf('|');
+        const cat = groupKey.slice(0, idx);
+        const proj = groupKey.slice(idx + 1);
+        filtered = lifeLog.filter(e => e.type === type && (e.data.category || 'Job') === cat && (e.data.project || '').trim() === proj);
       } else {
+        // Legacy fallback: project-only key
         if (groupKey === 'Uncategorized') {
           filtered = lifeLog.filter(e => e.type === type && !(e.data.project || '').trim());
         } else {
@@ -1368,9 +1396,15 @@ if (document.getElementById('mainContent')) {
     const repeatLabelSingular = { tv: 'rewatch', game: 'replay', movie: 'rewatch', book: 're-read' };
     const repeatLabelPlural = { tv: 'rewatches', game: 'replays', movie: 'rewatches', book: 're-reads' };
     const entriesHtml = filtered.map(e => {
-      const mainField = t?.fields[0]?.key;
-      const mainValue = (e.data[mainField] || 'Entry').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const details = t?.fields.slice(1, 5).filter(f => f.key !== 'repeat').map(f => e.data[f.key]).filter(Boolean).join(' · ');
+      let mainValue, details;
+      if (type === 'work') {
+        mainValue = (e.data.title || e.data.project || 'Work session').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        details = [e.data.subtype, e.data.duration ? `${e.data.duration} min` : ''].filter(Boolean).join(' · ');
+      } else {
+        const mainField = t?.fields[0]?.key;
+        mainValue = (e.data[mainField] || 'Entry').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        details = t?.fields.slice(1, 5).filter(f => f.key !== 'repeat').map(f => e.data[f.key]).filter(Boolean).join(' · ');
+      }
       const rc = getRepeatCount(e);
       const repeatBadge = rc > 0 ? ` <span class="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">${getRepeatLabel(rc, type)}</span>` : '';
       return `<div onclick="showEntryDetail('${e.id}')" class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
@@ -1516,9 +1550,10 @@ if (document.getElementById('mainContent')) {
       const books = {};
       entries.forEach(e => {
         const title = e.data.title;
-        if (!books[title]) books[title] = { sessions: 0, pages: 0, finished: false, lastRead: e.date, entries: [] };
+        if (!books[title]) books[title] = { sessions: 0, pages: 0, minutes: 0, finished: false, lastRead: e.date, entries: [] };
         books[title].sessions++;
         books[title].pages += e.data.pages || 0;
+        books[title].minutes += e.data.duration || 0;
         books[title].entries.push(e);
         if (e.data.finished) books[title].finished = true;
         if (e.date > books[title].lastRead) books[title].lastRead = e.date;
@@ -1531,6 +1566,7 @@ if (document.getElementById('mainContent')) {
         const titleEsc = (title || '').replace(/'/g, "\\'");
         const rereadCount = (data.entries || []).filter(e => getRepeatCount(e) > 0).length;
         const rereadStr = rereadCount > 0 ? ` · ${rereadCount} re-read${rereadCount !== 1 ? 's' : ''}` : '';
+        const timeStr = data.minutes ? ` · ${data.minutes >= 60 ? `${Math.round(data.minutes / 60 * 10) / 10}h` : `${data.minutes} min`}` : '';
         html += `
           <div onclick="showLibraryDetail('book', '${titleEsc}', '${title}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
             <div class="flex items-center gap-4">
@@ -1539,7 +1575,7 @@ if (document.getElementById('mainContent')) {
               </div>
               <div class="flex-1">
                 <h4 class="font-semibold text-slate-900 dark:text-white">${title}</h4>
-                <p class="text-sm text-slate-500 dark:text-slate-400">${data.pages} pages · ${data.sessions} sessions ${data.finished ? '· <span class="text-green-500">Finished</span>' : ''}${rereadStr}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">${data.pages} pages · ${data.sessions} sessions${timeStr} ${data.finished ? '· <span class="text-green-500">Finished</span>' : ''}${rereadStr}</p>
                 <p class="text-xs text-slate-400 mt-1">Last read: ${formatDateShort(data.lastRead)}</p>
               </div>
               <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600"></i>
@@ -1584,27 +1620,30 @@ if (document.getElementById('mainContent')) {
       });
       html += '</div>';
     } else if (type === 'work') {
-      // Group by project/course (e.g. "Project A", "Class A")
-      const byProject = {};
+      // Group by category + project/course (e.g. "School · Course A", "Job · Project A")
+      const byGroup = {};
       entries.forEach(e => {
-        const proj = (e.data.project || '').trim() || '__uncategorized__';
-        if (!byProject[proj]) byProject[proj] = { entries: [], totalMins: 0, lastWorked: e.date };
-        byProject[proj].entries.push(e);
-        byProject[proj].totalMins += e.data.duration || 0;
-        if (e.date > byProject[proj].lastWorked) byProject[proj].lastWorked = e.date;
+        const cat = e.data.category || 'Job';
+        const proj = (e.data.project || '').trim();
+        const key = cat + '|' + proj;
+        if (!byGroup[key]) byGroup[key] = { entries: [], totalMins: 0, lastWorked: e.date, cat, proj };
+        byGroup[key].entries.push(e);
+        byGroup[key].totalMins += e.data.duration || 0;
+        if (e.date > byGroup[key].lastWorked) byGroup[key].lastWorked = e.date;
       });
-      const sortedProjects = Object.entries(byProject).sort((a, b) => new Date(b[1].lastWorked) - new Date(a[1].lastWorked));
+      const sortedGroups = Object.entries(byGroup).sort((a, b) => new Date(b[1].lastWorked) - new Date(a[1].lastWorked));
       
       html = `<div class="space-y-4">`;
-      sortedProjects.forEach(([projKey, data]) => {
-        const label = projKey === '__uncategorized__' ? 'Uncategorized' : projKey;
-        const projEsc = (label || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      sortedGroups.forEach(([groupKey, data]) => {
+        const label = data.proj ? `${data.cat} · ${data.proj}` : `${data.cat} (no project)`;
+        const keyEsc = (groupKey || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const labelEsc = (label || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         const hours = Math.round(data.totalMins / 60 * 10) / 10;
-        const catBreakdown = {};
-        data.entries.forEach(e => { const c = e.data.category || 'Job'; catBreakdown[c] = (catBreakdown[c] || 0) + 1; });
-        const catStr = Object.entries(catBreakdown).map(([c, n]) => `${c}: ${n}`).join(', ');
+        const subBreakdown = {};
+        data.entries.forEach(e => { const s = e.data.subtype || 'Other'; subBreakdown[s] = (subBreakdown[s] || 0) + 1; });
+        const subStr = Object.entries(subBreakdown).map(([s, n]) => `${s}: ${n}`).join(', ');
         html += `
-          <div onclick="showLibraryDetail('work', '${projEsc}', '${projEsc}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
+          <div onclick="showLibraryDetail('work', '${keyEsc}', '${labelEsc}')" class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
             <div class="flex items-start gap-4">
               <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: ${t.color}20">
                 <i class="fas ${t.icon} text-lg" style="color: ${t.color}"></i>
@@ -1612,7 +1651,7 @@ if (document.getElementById('mainContent')) {
               <div class="flex-1 min-w-0">
                 <h4 class="font-semibold text-slate-900 dark:text-white">${label.replace(/</g, '&lt;')}</h4>
                 <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${data.entries.length} session${data.entries.length !== 1 ? 's' : ''}${hours ? ` · ${hours}h total` : ''}</p>
-                <p class="text-xs text-slate-400 mt-1">${catStr}</p>
+                <p class="text-xs text-slate-400 mt-1">${subStr}</p>
                 <p class="text-xs text-slate-400 mt-1">Last worked: ${formatDateShort(data.lastWorked)}</p>
               </div>
               <i class="fas fa-chevron-right text-slate-400 group-hover:text-slate-600 mt-2"></i>
@@ -2073,6 +2112,134 @@ if (document.getElementById('mainContent')) {
   document.getElementById('addHabitBtn')?.addEventListener('click', addHabitModal);
   
   // ========================================
+  // Chores
+  // ========================================
+  const CHORE_FREQUENCIES = ['Daily', 'Weekly', 'Biweekly', 'Monthly', 'As needed'];
+  const FREQ_DAYS = { 'Daily': 1, 'Weekly': 7, 'Biweekly': 14, 'Monthly': 30, 'As needed': null };
+  
+  const isChoreDoneToday = (c) => (c.completions || []).includes(getLocalDateString());
+  
+  const lastChoreCompletion = (c) => {
+    const completions = (c.completions || []).slice().sort();
+    return completions.length ? completions[completions.length - 1] : null;
+  };
+  
+  const daysSince = (dateStr) => {
+    if (!dateStr) return null;
+    const then = parseLocalDate(dateStr);
+    const now = parseLocalDate(getLocalDateString());
+    return Math.round((now - then) / 86400000);
+  };
+  
+  // A chore is "due" if it has never been done, or more days have passed than its frequency window.
+  const isChoreDue = (c) => {
+    const window = FREQ_DAYS[c.frequency];
+    if (window === null || window === undefined) return false;
+    const last = lastChoreCompletion(c);
+    if (!last) return true;
+    return daysSince(last) >= window;
+  };
+  
+  const renderChores = () => {
+    const container = document.getElementById('choresContainer');
+    if (!container) return;
+    
+    if (chores.length === 0) {
+      container.innerHTML = `<div class="text-center py-16 text-slate-400">
+        <i class="fas fa-broom text-5xl mb-4 opacity-50"></i>
+        <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">No chores yet</h3>
+        <p class="text-sm mb-4">Track recurring chores and check them off as you go</p>
+        <button onclick="addChoreModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg"><i class="fas fa-plus mr-2"></i>Add Chore</button>
+      </div>`;
+      return;
+    }
+    
+    // Sort: due chores first, then by name
+    const sorted = chores.slice().sort((a, b) => {
+      const da = isChoreDue(a) ? 0 : 1;
+      const db = isChoreDue(b) ? 0 : 1;
+      if (da !== db) return da - db;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    
+    container.innerHTML = `<div class="space-y-3">${sorted.map(c => {
+      const doneToday = isChoreDoneToday(c);
+      const last = lastChoreCompletion(c);
+      const since = daysSince(last);
+      const due = isChoreDue(c);
+      const lastStr = !last ? 'Never done' : since === 0 ? 'Done today' : since === 1 ? 'Done yesterday' : `Last done ${since} days ago`;
+      return `
+      <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border ${due ? 'border-amber-400/60' : 'border-slate-200 dark:border-slate-700'} ${doneToday ? 'ring-2 ring-green-500/50' : ''} group">
+        <div class="flex items-center gap-4">
+          <button onclick="toggleChore('${c.id}')" class="w-12 h-12 rounded-xl flex items-center justify-center transition-all ${doneToday ? 'bg-green-500' : ''}" style="background: ${doneToday ? '' : c.color + '20'}" title="${doneToday ? 'Undo today' : 'Mark done today'}">
+            <i class="fas ${doneToday ? 'fa-check text-white' : 'fa-broom'} text-lg" style="color: ${doneToday ? '' : c.color}"></i>
+          </button>
+          <div class="flex-1 min-w-0">
+            <h4 class="font-medium text-slate-900 dark:text-white ${doneToday ? 'line-through opacity-60' : ''}">${(c.name || '').replace(/</g, '&lt;')}</h4>
+            <p class="text-sm text-slate-500 dark:text-slate-400">${c.frequency} · ${lastStr}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            ${due ? '<span class="text-xs px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full font-medium">Due</span>' : ''}
+            <button onclick="deleteChore('${c.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Delete"><i class="fas fa-trash text-xs"></i></button>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  };
+  
+  window.toggleChore = (id) => {
+    const c = chores.find(x => x.id === id);
+    if (!c) return;
+    c.completions = c.completions || [];
+    const today = getLocalDateString();
+    if (c.completions.includes(today)) {
+      c.completions = c.completions.filter(d => d !== today);
+    } else {
+      c.completions.push(today);
+    }
+    saveData('chores', chores);
+    renderChores();
+  };
+  
+  window.deleteChore = (id) => {
+    if (!confirm('Delete this chore and all its history?')) return;
+    chores = chores.filter(c => c.id !== id);
+    saveData('chores', chores);
+    renderChores();
+  };
+  
+  window.addChoreModal = () => {
+    openModal('Add Chore', `
+      <form id="choreForm" class="space-y-4">
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
+          <input type="text" id="choreName" required placeholder="e.g., Take out trash" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Frequency</label>
+          <select id="choreFreq" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            ${CHORE_FREQUENCIES.map(f => `<option value="${f}">${f}</option>`).join('')}
+          </select></div>
+        <div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Color</label>
+          <input type="color" id="choreColor" value="#0ea5e9" class="w-full h-10 rounded-lg cursor-pointer"></div>
+        <button type="submit" class="w-full py-2.5 gradient-bg text-white font-medium rounded-lg"><i class="fas fa-plus mr-2"></i>Add Chore</button>
+      </form>
+    `);
+    document.getElementById('choreForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      chores.push({
+        id: generateId(),
+        name: document.getElementById('choreName').value,
+        frequency: document.getElementById('choreFreq').value,
+        color: document.getElementById('choreColor').value,
+        completions: [],
+        createdAt: Date.now()
+      });
+      saveData('chores', chores);
+      renderChores();
+      closeModal();
+    });
+  };
+  document.getElementById('addChoreBtn')?.addEventListener('click', addChoreModal);
+  
+  // ========================================
   // Finance
   // ========================================
   const TXN_CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Housing', 'Utilities', 'Salary', 'Interest', 'Other'];
@@ -2281,6 +2448,19 @@ if (document.getElementById('mainContent')) {
           tx.accountId = document.getElementById('txnAccount')?.value || null;
           tx.receiptUrl = (document.getElementById('txnReceiptUrl')?.value || '').trim() || null;
           tx.date = document.getElementById('txnDate').value;
+          // Keep a linked Life Log purchase/meal in sync (avoid drift)
+          if (tx._lifeLogEntryId) {
+            const le = lifeLog.find(en => en.id === tx._lifeLogEntryId);
+            if (le) {
+              le.data = le.data || {};
+              le.data.amount = tx.amount;
+              le.date = tx.date;
+              if (le.type === 'purchase') le.data.financeCategory = tx.category;
+              saveData('lifeLog', lifeLog);
+              renderCalendar();
+              renderDayDetail();
+            }
+          }
           saveData('finance', finance);
           renderFinance();
           closeModal();
@@ -2289,7 +2469,24 @@ if (document.getElementById('mainContent')) {
     });
   };
 
-  window.deleteTxn = (id) => { finance.transactions = finance.transactions.filter(t => t.id !== id); saveData('finance', finance); renderFinance(); };
+  window.deleteTxn = (id) => {
+    const tx = finance.transactions.find(t => t.id === id);
+    // If this transaction came from a Life Log entry, unlink it so editing the
+    // purchase later doesn't silently recreate a deleted transaction.
+    if (tx && tx._lifeLogEntryId) {
+      const le = lifeLog.find(en => en.id === tx._lifeLogEntryId);
+      if (le) {
+        le.data = le.data || {};
+        le.data.addToFinance = false;
+        saveData('lifeLog', lifeLog);
+        renderCalendar();
+        renderDayDetail();
+      }
+    }
+    finance.transactions = finance.transactions.filter(t => t.id !== id);
+    saveData('finance', finance);
+    renderFinance();
+  };
   
   document.getElementById('addTransactionBtn')?.addEventListener('click', () => {
     const catOpts = TXN_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -3038,7 +3235,7 @@ if (document.getElementById('mainContent')) {
   // Settings
   // ========================================
   document.getElementById('exportData')?.addEventListener('click', () => {
-    const data = { tasks, goals, habits, finance, journal, lifeLog, exportedAt: Date.now() };
+    const data = { tasks, goals, habits, chores, finance, journal, lifeLog, exportedAt: Date.now() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `life-erp-${getLocalDateString()}.json`; a.click();
@@ -3069,18 +3266,21 @@ if (document.getElementById('mainContent')) {
       tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
       goals = Array.isArray(parsed.goals) ? parsed.goals : [];
       habits = Array.isArray(parsed.habits) ? parsed.habits : [];
+      chores = Array.isArray(parsed.chores) ? parsed.chores : [];
       finance = financeRestored;
       journal = Array.isArray(parsed.journal) ? parsed.journal : [];
       lifeLog = Array.isArray(parsed.lifeLog) ? parsed.lifeLog : [];
       await saveData('tasks', tasks);
       await saveData('goals', goals);
       await saveData('habits', habits);
+      await saveData('chores', chores);
       await saveData('finance', finance);
       await saveData('journal', journal);
       await saveData('lifeLog', lifeLog);
       renderTasks();
       renderGoals();
       renderHabits();
+      renderChores();
       renderFinance();
       renderJournal();
       renderCalendar();
@@ -3095,10 +3295,10 @@ if (document.getElementById('mainContent')) {
   document.getElementById('clearData')?.addEventListener('click', async () => {
     if (confirm('Clear all data? This cannot be undone.')) {
       Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
-      tasks = []; goals = []; habits = []; finance = { transactions: [], accounts: [] }; journal = []; lifeLog = [];
-      await saveData('tasks', []); await saveData('goals', []); await saveData('habits', []);
+      tasks = []; goals = []; habits = []; chores = []; finance = { transactions: [], accounts: [] }; journal = []; lifeLog = [];
+      await saveData('tasks', []); await saveData('goals', []); await saveData('habits', []); await saveData('chores', []);
       await saveData('finance', { transactions: [], accounts: [] }); await saveData('journal', []); await saveData('lifeLog', []);
-      renderTasks(); renderGoals(); renderHabits(); renderFinance(); renderJournal(); renderCalendar(); renderDayDetail();
+      renderTasks(); renderGoals(); renderHabits(); renderChores(); renderFinance(); renderJournal(); renderCalendar(); renderDayDetail();
       updateStats(); alert('All data cleared.');
     }
   });
@@ -3181,12 +3381,24 @@ if (document.getElementById('mainContent')) {
       
       const ctx = document.getElementById('chartHealthTrend');
       if (!ctx) return;
+      const container = ctx.parentElement;
+      let emptyMsg = container?.querySelector('.health-trend-empty');
       const isDark = document.documentElement.classList.contains('dark');
-      if (chartHealthTrend) chartHealthTrend.destroy();
+      if (chartHealthTrend) { chartHealthTrend.destroy(); chartHealthTrend = null; }
       if (dates.length === 0) {
-        ctx.parentElement.innerHTML = '<div class="h-64 flex items-center justify-center text-slate-400"><p>No data for this metric. Log health entries to see trends.</p></div>';
+        // Hide (do NOT destroy) the canvas so switching metrics can redraw it.
+        ctx.style.display = 'none';
+        if (!emptyMsg && container) {
+          emptyMsg = document.createElement('div');
+          emptyMsg.className = 'health-trend-empty h-64 flex items-center justify-center text-slate-400';
+          emptyMsg.innerHTML = '<p>No data for this metric. Log health entries to see trends.</p>';
+          container.appendChild(emptyMsg);
+        }
+        if (emptyMsg) emptyMsg.style.display = 'flex';
         return;
       }
+      if (emptyMsg) emptyMsg.style.display = 'none';
+      ctx.style.display = '';
       chartHealthTrend = new Chart(ctx, {
         type: 'line',
         data: {
@@ -3287,6 +3499,7 @@ if (document.getElementById('mainContent')) {
     tasks = payload.tasks ?? [];
     goals = payload.goals ?? [];
     habits = payload.habits ?? [];
+    chores = payload.chores ?? [];
     finance = payload.finance ?? { transactions: [], accounts: [] };
     finance.transactions = finance.transactions || [];
     finance.accounts = finance.accounts || [];
@@ -3295,6 +3508,7 @@ if (document.getElementById('mainContent')) {
     renderTasks();
     renderGoals();
     renderHabits();
+    renderChores();
     renderFinance();
     renderJournal();
     renderCalendar();
@@ -3308,6 +3522,7 @@ if (document.getElementById('mainContent')) {
   renderTasks();
   renderGoals();
   renderHabits();
+  renderChores();
   renderFinance();
   renderJournal();
   renderCalendar();
@@ -3462,6 +3677,7 @@ if (document.getElementById('mainContent')) {
           <form id="cloudAuthForm" class="space-y-3">
             <input type="email" id="cloudEmail" placeholder="Email" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
             <input type="password" id="cloudPassword" placeholder="Password" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">
+            ${(typeof SIGNUP_ACCESS_KEY !== 'undefined' && SIGNUP_ACCESS_KEY) ? `<input type="password" id="cloudAccessKey" placeholder="Access key (only needed for new accounts)" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm">` : ''}
             <p id="cloudAuthError" class="text-sm text-red-500 hidden"></p>
             <p id="cloudAuthSuccess" class="text-sm text-emerald-600 dark:text-emerald-400 hidden"></p>
             <div class="flex gap-2">
@@ -3479,6 +3695,21 @@ if (document.getElementById('mainContent')) {
         const err = document.getElementById('cloudAuthError');
         const ok = document.getElementById('cloudAuthSuccess');
         ok?.classList.add('hidden');
+        // Access-key gate for creating new accounts. NOTE: this is a client-side
+        // deterrent only (this is a static site, so the key ships in the bundle).
+        // For real enforcement, disable open signups in Supabase (Auth -> Providers)
+        // and use an invite/allowlist or an Edge Function that validates a server-side key.
+        if (isSignUp) {
+          const requiredKey = (typeof SIGNUP_ACCESS_KEY !== 'undefined' && SIGNUP_ACCESS_KEY) ? SIGNUP_ACCESS_KEY : null;
+          if (requiredKey) {
+            const enteredKey = (document.getElementById('cloudAccessKey')?.value || '').trim();
+            if (enteredKey !== requiredKey) {
+              err.textContent = 'A valid access key is required to create an account.';
+              err.classList.remove('hidden');
+              return;
+            }
+          }
+        }
         const { error } = isSignUp ? await window.dataService.signUp(email, password, email.split('@')[0]) : await window.dataService.signIn(email, password);
         if (error) {
           err.textContent = /rate limit|rate_limit|email.*exceed/i.test(error.message)

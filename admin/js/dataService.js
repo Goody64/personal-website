@@ -3,12 +3,13 @@
 // Abstracts storage: localStorage (local) or Supabase (cloud sync)
 // ========================================
 
-const DATA_DOMAINS = ['tasks', 'goals', 'habits', 'finance', 'journal', 'lifeLog'];
+const DATA_DOMAINS = ['tasks', 'goals', 'habits', 'chores', 'finance', 'journal', 'lifeLog'];
 const STORAGE_PREFIX = 'lifeErp_';
 const DATA_KEYS = {
   tasks: STORAGE_PREFIX + 'tasks',
   goals: STORAGE_PREFIX + 'goals',
   habits: STORAGE_PREFIX + 'habits',
+  chores: STORAGE_PREFIX + 'chores',
   finance: STORAGE_PREFIX + 'finance',
   journal: STORAGE_PREFIX + 'journal',
   lifeLog: STORAGE_PREFIX + 'lifeLog'
