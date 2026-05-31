@@ -4012,8 +4012,21 @@ if (document.getElementById('mainContent')) {
     if (hadCache && window.dataService?.loadAll) {
       window.dataService.loadAll().then(fresh => {
         if (fresh) {
-          applyDataFromPayload(fresh);
-          sessionStorage.setItem(cacheKey, JSON.stringify(fresh));
+          const current = { tasks, goals, habits, chores, finance, journal, lifeLog };
+          const merged = window.dataService.mergeAllPayloads
+            ? window.dataService.mergeAllPayloads(current, fresh)
+            : fresh;
+          applyDataFromPayload(merged);
+          sessionStorage.setItem(cacheKey, JSON.stringify(merged));
+          if (session) {
+            saveData('tasks', tasks);
+            saveData('goals', goals);
+            saveData('habits', habits);
+            saveData('chores', chores);
+            saveData('finance', finance);
+            saveData('journal', journal);
+            saveData('lifeLog', lifeLog);
+          }
         }
       }).catch(() => {});
     } else {
@@ -4101,7 +4114,53 @@ if (document.getElementById('mainContent')) {
       <p class="text-emerald-600 dark:text-emerald-400"><i class="fas fa-cloud mr-2"></i>Supabase connected</p>
       <p class="text-slate-500 dark:text-slate-400 text-xs mt-1">Signed in as ${(session.user?.email || 'unknown').replace(/</g, '&lt;')}</p>
       <p class="text-slate-500 dark:text-slate-400 mt-2"><strong>Storage:</strong> ${testOk ? 'Cloud sync active' : 'Cloud sync (fetch test failed: ' + testErr + ')'}</p>
+      <p class="text-slate-500 dark:text-slate-400 text-xs mt-2">Sync merges devices by record ID — signing in never wipes the larger dataset.</p>
+      <button type="button" id="mergeCloudSyncBtn" class="mt-3 w-full py-2.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-medium rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
+        <i class="fas fa-code-branch mr-2"></i>Merge this device with cloud
+      </button>
+      <p id="mergeCloudSyncResult" class="text-xs text-slate-500 dark:text-slate-400 mt-2 hidden"></p>
     `;
+    el.querySelector('#mergeCloudSyncBtn')?.addEventListener('click', async () => {
+      const resultEl = document.getElementById('mergeCloudSyncResult');
+      const btn = el.querySelector('#mergeCloudSyncBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Merging…'; }
+      try {
+        const localPayload = { tasks, goals, habits, chores, finance, journal, lifeLog };
+        const cloudPayload = {};
+        for (const d of (window.DATA_DOMAINS || [])) {
+          cloudPayload[d] = await window.dataService.getCloudOnly(d);
+        }
+        const merged = window.dataService.mergeAllPayloads(localPayload, cloudPayload);
+        applyDataFromPayload(merged);
+        await saveData('tasks', tasks);
+        await saveData('goals', goals);
+        await saveData('habits', habits);
+        await saveData('chores', chores);
+        await saveData('finance', finance);
+        await saveData('journal', journal);
+        await saveData('lifeLog', lifeLog);
+        renderTasks(); renderGoals(); renderHabits(); renderChores(); renderFinance();
+        renderJournal(); renderCalendar(); renderDayDetail(); updateStats();
+        if (resultEl) {
+          const parts = (window.DATA_DOMAINS || []).map(d => {
+            const s = window.dataService.countDomainRecords(d, merged[d]);
+            const l = window.dataService.countDomainRecords(d, localPayload[d]);
+            const c = window.dataService.countDomainRecords(d, cloudPayload[d]);
+            return `${d} ${s} (was ${l}+${c})`;
+          });
+          resultEl.textContent = 'Merged: ' + parts.join(' · ');
+          resultEl.classList.remove('hidden');
+        }
+        alert('Merge complete — device and cloud records were combined.');
+      } catch (err) {
+        alert('Merge failed: ' + (err.message || String(err)));
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-code-branch mr-2"></i>Merge this device with cloud';
+        }
+      }
+    });
   };
 
   // Cloud sync UI
@@ -4150,7 +4209,7 @@ if (document.getElementById('mainContent')) {
             </div>
             <p class="text-xs text-center"><a href="#" id="cloudForgotPassword" class="text-blue-500 hover:underline">Forgot password?</a></p>
           </form>
-          <p class="text-xs text-slate-500 dark:text-slate-400">Local data is imported to cloud when you sign in.</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Local data is merged with cloud when you sign in (records are combined, not overwritten).</p>
         </div>
       `);
       const doAuth = async (isSignUp) => {
@@ -4182,8 +4241,16 @@ if (document.getElementById('mainContent')) {
           err.classList.remove('hidden');
           return;
         }
-        const hasLocal = (window.DATA_DOMAINS || []).some(d => localStorage.getItem(STORAGE_KEYS[d] || 'lifeErp_' + d));
-        if (hasLocal) await window.dataService.importLocalToCloud();
+        const hasLocal = (window.DATA_DOMAINS || []).some(d => {
+          const raw = localStorage.getItem(STORAGE_KEYS[d] || 'lifeErp_' + d);
+          if (!raw) return false;
+          try {
+            return window.dataService?.domainHasContent
+              ? window.dataService.domainHasContent(d, JSON.parse(raw))
+              : JSON.parse(raw)?.length > 0;
+          } catch { return false; }
+        });
+        if (hasLocal) await window.dataService.mergeLocalWithCloud();
         closeModal(); window.location.reload();
       };
       document.getElementById('cloudAuthForm')?.addEventListener('submit', async (e) => { e.preventDefault(); const email = document.getElementById('cloudEmail').value; const pw = document.getElementById('cloudPassword').value; if (!email || !pw) { document.getElementById('cloudAuthError').textContent = 'Email and password required'; document.getElementById('cloudAuthError').classList.remove('hidden'); return; } await doAuth(false); });

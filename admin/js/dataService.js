@@ -20,6 +20,78 @@ function getDefault(domain) {
   return [];
 }
 
+function countDomainRecords(domain, data) {
+  if (data == null) return 0;
+  if (domain === 'finance') {
+    if (typeof data !== 'object') return 0;
+    return (data.transactions?.length || 0) + (data.accounts?.length || 0);
+  }
+  return Array.isArray(data) ? data.length : 0;
+}
+
+function domainHasContent(domain, data) {
+  return countDomainRecords(domain, data) > 0;
+}
+
+function mergeArraysById(a, b) {
+  const map = new Map();
+  const add = (item) => {
+    if (!item || typeof item !== 'object') return;
+    const id = item.id;
+    if (!id) {
+      const key = '_noid_' + JSON.stringify(item).slice(0, 240);
+      if (!map.has(key)) map.set(key, item);
+      return;
+    }
+    const existing = map.get(id);
+    if (!existing) {
+      map.set(id, item);
+      return;
+    }
+    const tsA = item.updatedAt || item.createdAt || 0;
+    const tsB = existing.updatedAt || existing.createdAt || 0;
+    map.set(id, tsA >= tsB ? { ...existing, ...item } : { ...item, ...existing });
+  };
+  (b || []).forEach(add);
+  (a || []).forEach(add);
+  return Array.from(map.values());
+}
+
+function mergeFinance(local, cloud) {
+  const l = local && typeof local === 'object' ? local : { transactions: [], accounts: [] };
+  const c = cloud && typeof cloud === 'object' ? cloud : { transactions: [], accounts: [] };
+  return {
+    ...c,
+    ...l,
+    transactions: mergeArraysById(l.transactions, c.transactions),
+    accounts: mergeArraysById(l.accounts, c.accounts),
+    recurring: mergeArraysById(l.recurring, c.recurring),
+    budgets: { ...(c.budgets || {}), ...(l.budgets || {}) },
+    settings: { ...(c.settings || {}), ...(l.settings || {}) },
+    accountSlotOrder: l.accountSlotOrder || c.accountSlotOrder
+  };
+}
+
+function mergeDomain(domain, local, cloud) {
+  const hasLocal = domainHasContent(domain, local);
+  const hasCloud = domainHasContent(domain, cloud);
+  if (!hasLocal) return cloud ?? getDefault(domain);
+  if (!hasCloud) return local;
+  if (domain === 'finance') return mergeFinance(local, cloud);
+  if (Array.isArray(local) || Array.isArray(cloud)) {
+    return mergeArraysById(Array.isArray(local) ? local : [], Array.isArray(cloud) ? cloud : []);
+  }
+  return countDomainRecords(domain, local) >= countDomainRecords(domain, cloud) ? local : cloud;
+}
+
+function mergeAllPayloads(localPayload, cloudPayload) {
+  const result = {};
+  DATA_DOMAINS.forEach(domain => {
+    result[domain] = mergeDomain(domain, localPayload?.[domain], cloudPayload?.[domain]);
+  });
+  return result;
+}
+
 // Local storage helpers
 function getLocal(key) {
   try {
@@ -128,6 +200,44 @@ const dataService = {
     });
   },
 
+  countDomainRecords(domain, data) {
+    return countDomainRecords(domain, data);
+  },
+
+  domainHasContent(domain, data) {
+    return domainHasContent(domain, data);
+  },
+
+  mergeDomain(domain, local, cloud) {
+    return mergeDomain(domain, local, cloud);
+  },
+
+  mergeAllPayloads(localPayload, cloudPayload) {
+    return mergeAllPayloads(localPayload, cloudPayload);
+  },
+
+  async getCloudOnly(domain) {
+    try {
+      if (!this._useCloud || !this._supabase) return null;
+      const { data: { user } } = await this._supabase.auth.getUser();
+      if (!user) return null;
+      const { data, error } = await this._supabase
+        .from('user_data')
+        .select('data')
+        .eq('user_id', user.id)
+        .eq('domain', domain)
+        .maybeSingle();
+      if (error) {
+        console.warn('Supabase getCloudOnly error:', error);
+        return null;
+      }
+      return data?.data ?? null;
+    } catch (err) {
+      console.warn('DataService getCloudOnly error:', err);
+      return null;
+    }
+  },
+
   async get(domain) {
     const key = DATA_KEYS[domain] || STORAGE_PREFIX + domain;
     try {
@@ -136,17 +246,16 @@ const dataService = {
       }
       const { data: { user } } = await this._supabase.auth.getUser();
       if (!user) return getLocal(key) ?? getDefault(domain);
-      const { data, error } = await this._supabase
-        .from('user_data')
-        .select('data')
-        .eq('user_id', user.id)
-        .eq('domain', domain)
-        .maybeSingle();
-      if (error) {
-        console.warn('Supabase get error:', error);
-        return getLocal(key) ?? getDefault(domain);
+      const cloud = await this.getCloudOnly(domain);
+      const local = getLocal(key);
+      if (cloud != null && domainHasContent(domain, local)) {
+        const merged = mergeDomain(domain, local, cloud);
+        setLocal(key, merged);
+        return merged;
       }
-      return data?.data ?? getLocal(key) ?? getDefault(domain);
+      const result = cloud ?? local ?? getDefault(domain);
+      if (result != null) setLocal(key, result);
+      return result;
     } catch (err) {
       console.warn('DataService get error:', err);
       return getLocal(key) ?? getDefault(domain);
@@ -181,16 +290,30 @@ const dataService = {
     return result;
   },
 
-  async importLocalToCloud() {
+  /** Merge this browser's localStorage with cloud — union by id, never wipe the larger dataset. */
+  async mergeLocalWithCloud() {
     if (!this._supabase) return { error: new Error('Supabase not configured') };
     const { data: { user } } = await this._supabase.auth.getUser();
     if (!user) return { error: new Error('Not signed in') };
+    this._useCloud = true;
+    const summary = {};
     for (const domain of DATA_DOMAINS) {
       const key = DATA_KEYS[domain];
       const local = getLocal(key);
-      if (local != null) await this.save(domain, local);
+      const cloud = await this.getCloudOnly(domain);
+      const merged = mergeDomain(domain, local, cloud);
+      summary[domain] = {
+        local: countDomainRecords(domain, local),
+        cloud: countDomainRecords(domain, cloud),
+        merged: countDomainRecords(domain, merged)
+      };
+      await this.save(domain, merged);
     }
-    return {};
+    return { summary };
+  },
+
+  async importLocalToCloud() {
+    return this.mergeLocalWithCloud();
   }
 };
 
