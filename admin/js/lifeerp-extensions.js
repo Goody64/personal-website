@@ -581,7 +581,7 @@
   }
 
   function applyBalanceFromTxn(txn, sign) {
-    if (!api.finance.settings?.autoUpdateBalance || !txn.accountId) return;
+    if (!api.finance.settings?.autoUpdateBalance || !txn.accountId || txn.type === 'transfer') return;
     const acct = (api.finance.accounts || []).find(a => a.id === txn.accountId);
     if (!acct) return;
     const delta = txn.type === 'income' ? txn.amount : -txn.amount;
@@ -704,29 +704,37 @@
   }
 
   // ─── OFX / CSV Import ───
-  const classifyImportRow = (signedAmt, desc, accountType) => {
+  const classifyCreditCardRow = (signedAmt, desc, importKind) => {
     const amount = Math.abs(signedAmt);
+    if (looksLikeCcPayment(desc)) {
+      return { type: 'income', category: 'Other', amount };
+    }
+    // CSV card exports: positive = purchase, negative = payment/credit.
+    // OFX card exports: negative = purchase, positive = payment/credit/refund.
     let type;
-    let category = 'Other';
-    const isBank = typeof window.isBankCashAccount === 'function' && window.isBankCashAccount(accountType);
+    if (importKind === 'csv') {
+      type = signedAmt > 0 ? 'expense' : 'income';
+    } else {
+      type = signedAmt < 0 ? 'expense' : 'income';
+    }
+    return { type, category: 'Other', amount };
+  };
+
+  const guessImportKind = (t) => {
+    const h = String(t._importHash || '');
+    if (h.startsWith('csv-')) return 'csv';
+    return 'ofx';
+  };
+
+  const classifyImportRow = (signedAmt, desc, accountType, importKind = 'ofx') => {
+    const amount = Math.abs(signedAmt);
 
     if (accountType === 'credit_card') {
-      // Card charges are expenses; only explicit statement-payment descriptions are transfers.
-      // OFX/CSV sign varies by bank — never infer payment from sign alone.
-      if (looksLikeCcPayment(desc)) {
-        type = 'transfer';
-        category = 'Transfer';
-      } else {
-        type = 'expense';
-      }
-      return { type, category, amount };
+      return classifyCreditCardRow(signedAmt, desc, importKind);
     }
 
-    type = signedAmt >= 0 ? 'income' : 'expense';
-    if (signedAmt < 0 && isBank && looksLikeCcPayment(desc)) {
-      type = 'transfer';
-      category = 'Transfer';
-    }
+    const type = signedAmt >= 0 ? 'income' : 'expense';
+    const category = type === 'income' ? 'Other' : 'Other';
     return { type, category, amount };
   };
 
@@ -746,9 +754,9 @@
   function importHintForAccount(accountId) {
     const a = (api.finance.accounts || []).find(x => x.id === accountId);
     if (!a) return 'Select the account this OFX file belongs to.';
-    if (a.type === 'credit_card') return 'Credit card import: purchases are expenses. Only statement payments (e.g. "ONLINE PAYMENT, THANK YOU") are transfers.';
+    if (a.type === 'credit_card') return 'Credit card: purchases = expenses, payments & credits = income. No transfers — pay from checking and both sides net out.';
     if (typeof window.isBankCashAccount === 'function' && window.isBankCashAccount(a.type)) {
-      return 'Bank import: income & bills count as spending/cash flow. CC statement payments auto-mark as transfers.';
+      return 'Bank account: deposits = income, withdrawals & bill pays = expenses (including credit card payments).';
     }
     return 'Transactions will link to this account.';
   }
@@ -765,7 +773,7 @@
       const dateRaw = get('DTPOSTED') || get('DTUSER');
       const date = dateRaw.length >= 8 ? `${dateRaw.slice(0, 4)}-${dateRaw.slice(4, 6)}-${dateRaw.slice(6, 8)}` : api.getLocalDateString();
       const desc = get('NAME') || get('MEMO') || 'Import';
-      const { type, category, amount } = classifyImportRow(signedAmt, desc, accountType);
+      const { type, category, amount } = classifyImportRow(signedAmt, desc, accountType, 'ofx');
       txns.push({ date, description: desc, amount, type, category, signedAmt, _importHash: get('FITID') || `${date}-${signedAmt}-${get('MEMO')}` });
     }
     const balMatch = text.match(/<LEDGERBAL>[\s\S]*?<BALAMT>([^<]+)/i);
@@ -864,7 +872,7 @@
       const desc = pickCsvField(row, ['description', 'memo', 'payee', 'name', 'merchant']) || 'Import';
       const signedAmt = csvSignedAmount(row, accountType);
       if (!signedAmt) return;
-      const { type, category, amount } = classifyImportRow(signedAmt, desc, accountType);
+      const { type, category, amount } = classifyImportRow(signedAmt, desc, accountType, 'csv');
       const cat = category === 'Other' ? mapCsvCategory(row, type) : category;
       txns.push({
         date, description: desc, amount, type, category: cat, signedAmt,
@@ -1148,51 +1156,44 @@
     }
   }
 
-  /** Fix card purchases misclassified as transfers; mark only explicit statement payments as transfer. */
-  function repairCcImportClassification() {
+  /** Undo auto-transfer classification; card payments/credits → income, purchases → expense. */
+  function repairImportClassification() {
     const accounts = api.finance.accounts || [];
     let n = 0;
     (api.finance.transactions || []).forEach(t => {
       const acct = accounts.find(a => a.id === t.accountId);
       const onCard = acct?.type === 'credit_card';
-      const isPayment = looksLikeCcPayment(t.description);
+      const signed = t._importSignedAmt;
+      const kind = guessImportKind(t);
 
-      if (onCard && t.type === 'transfer' && !isPayment) {
-        t.type = 'expense';
-        if (!t.category || t.category === 'Transfer') t.category = 'Other';
+      if (onCard && signed != null) {
+        const { type, category } = classifyCreditCardRow(signed, t.description, kind);
+        if (t.type !== type || t.category === 'Transfer') {
+          t.type = type;
+          if (!t.category || t.category === 'Transfer') t.category = category;
+          n++;
+        }
+        return;
+      }
+
+      if (onCard && t.type === 'transfer') {
+        t.type = looksLikeCcPayment(t.description) ? 'income' : 'expense';
+        if (t.category === 'Transfer') t.category = 'Other';
         n++;
         return;
       }
 
-      if (isPayment && t.type !== 'transfer') {
-        t.type = 'transfer';
-        t.category = 'Transfer';
-        n++;
-        return;
-      }
-
-      if (!onCard) return;
-
-      if (t.type === 'income') {
-        t.type = 'expense';
-        if (!t.category || t.category === 'Salary' || t.category === 'Interest') t.category = 'Other';
+      if (t.type === 'transfer') {
+        t.type = signed != null ? (signed >= 0 ? 'income' : 'expense') : 'expense';
+        if (t.category === 'Transfer') t.category = 'Other';
         n++;
       }
     });
     return n;
   }
 
-  function markCcPaymentsAsTransfers() {
-    let n = 0;
-    (api.finance.transactions || []).forEach(t => {
-      if (!looksLikeCcPayment(t.description)) return;
-      if (t.type !== 'transfer') {
-        t.type = 'transfer';
-        t.category = 'Transfer';
-        n++;
-      }
-    });
-    n += repairCcImportClassification();
+  function runImportClassificationRepair() {
+    const n = repairImportClassification();
     if (n) {
       api.saveData('finance', api.finance);
       api.renderFinance();
@@ -1202,10 +1203,10 @@
     return n;
   }
 
-  function confirmMarkCcTransfers() {
-    if (!confirm('Fix credit card rows?\n\n• Purchases wrongly marked Transfer → Expense\n• Statement payments (e.g. "ONLINE PAYMENT, THANK YOU") → Transfer\n• Transfers are ignored for spending totals and enrich')) return;
-    const n = markCcPaymentsAsTransfers();
-    notifyUser('CC classification fixed', n ? `Updated ${n} transaction${n === 1 ? '' : 's'}.` : 'Nothing to fix — already classified.', n ? 'info' : 'warning');
+  function confirmRepairImportClassification() {
+    if (!confirm('Reclassify imported rows?\n\n• Credit card: purchases → expense, payments/credits → income\n• Removes auto-transfer tags (checking payment + card credit net out across accounts)\n• Does not delete anything')) return;
+    const n = runImportClassificationRepair();
+    notifyUser('Import types fixed', n ? `Updated ${n} transaction${n === 1 ? '' : 's'}.` : 'Nothing to fix — already classified.', n ? 'info' : 'warning');
   }
 
   function wireSettingsActionButtons() {
@@ -1214,7 +1215,7 @@
     const actions = {
       'enrich-from-lifelog': confirmEnrichFromLifeLog,
       'dedupe-imports': confirmDedupeLifeLog,
-      'mark-cc-transfers': confirmMarkCcTransfers,
+      'mark-cc-transfers': confirmRepairImportClassification,
       'undo-last-import': () => confirmRemoveImport(true),
       'remove-all-imports': () => confirmRemoveImport(false)
     };
@@ -1466,7 +1467,7 @@
         if (api.finance.transactions.some(t => t._sfinId === sfinId)) return;
         const signedAmt = parseFloat(st.amount) || 0;
         const desc = st.description || st.payee || 'Bank import';
-        const { type, category, amount } = classifyImportRow(signedAmt, desc, acct.type);
+        const { type, category, amount } = classifyImportRow(signedAmt, desc, acct.type, 'ofx');
         api.finance.transactions.push({
           id: api.generateId(), type, description: desc, amount,
           category, accountId: acct.id, date: st.posted ? st.posted.slice(0, 10) : api.getLocalDateString(),
@@ -1533,7 +1534,7 @@
     }
     patchFinance();
     const repaired = repairUnpairedDuplicates(api.finance.transactions || []);
-    const ccFixed = repairCcImportClassification();
+    const ccFixed = repairImportClassification();
     if (repaired || ccFixed) api.saveData('finance', api.finance);
     api.renderFinance();
     patchCommandPalette();
@@ -1557,7 +1558,7 @@
     document.getElementById('weeklyReviewBtn')?.addEventListener('click', openWeeklyReview);
     document.getElementById('weeklyReviewCard')?.addEventListener('click', openWeeklyReview);
     window.renderBankSyncUI = renderBankSyncUI;
-    window.LifeERPImport = { mergeImportedTransactions, mergeSimpleFinData, applyBalanceFromTxn, removeImportedTransactions, dedupeLifeLogAgainstImports, enrichImportsFromLifeLog, repairCcImportClassification, markCcPaymentsAsTransfers };
+    window.LifeERPImport = { mergeImportedTransactions, mergeSimpleFinData, applyBalanceFromTxn, removeImportedTransactions, dedupeLifeLogAgainstImports, enrichImportsFromLifeLog, repairImportClassification, runImportClassificationRepair };
     window.LifeERPSettings = { enrich: confirmEnrichFromLifeLog, dedupe: confirmDedupeLifeLog };
   };
 })();
