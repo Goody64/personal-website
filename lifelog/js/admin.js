@@ -597,7 +597,12 @@ if (document.getElementById('mainContent')) {
   // On desktop, seed ml-64 so the toggle JS can operate on bare classes (lg:ml-64 stays as initial CSS).
   if (window.innerWidth >= 1024) document.getElementById('mainContent')?.classList.add('ml-64');
   document.getElementById('sidebarToggle')?.addEventListener('click', () => {
-    if (window.innerWidth < 1024) return; // sidebar is a drawer on mobile; margins don't apply
+    if (window.innerWidth < 1024) {
+      // Mobile: the toggle button closes the drawer
+      sidebar.classList.add('-translate-x-full');
+      sidebarBackdrop?.classList.add('hidden');
+      return;
+    }
     sidebar.classList.toggle('sidebar-collapsed');
     const mc = document.getElementById('mainContent');
     mc?.classList.toggle('ml-64');
