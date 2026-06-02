@@ -8,6 +8,7 @@ search, and filter; only you (signed in) can create/edit entries.
 - `editor.html` — owner-only sign-in + create/edit/delete + photo upload
 - `js/travel.js` — all logic (shared across the three pages, routed via `body[data-page]`)
 - `js/travel-config.js` — Supabase URL + anon key, injected at deploy time (stays `null` in git)
+- `js/travel-owner-config.js` — injected at deploy time from GitHub Actions secrets
 - `SUPABASE_TRAVEL_SETUP.sql` — run once in the Supabase SQL editor
 
 ## One-time setup
@@ -18,19 +19,18 @@ search, and filter; only you (signed in) can create/edit entries.
 2. In Supabase → **SQL Editor**, run `SUPABASE_TRAVEL_SETUP.sql`. This creates the
    `travel_posts` table (public read / signed-in write) and a public `travel`
    storage bucket for photos.
-3. **Lock it to you.** In `SUPABASE_TRAVEL_SETUP.sql`, set `owner_email` (two spots)
-   to the email you sign in with and run the file. The RLS policies then allow only
-   your account to read drafts / create / edit / delete; visitors only see published
-   posts.
-4. **Tell the editor who you are.** In `travel/js/travel-owner.js`, set
-   `window.TRAVEL_OWNER_EMAIL` to the same email (or `TRAVEL_OWNER_ID` to your UID).
-   The editor then refuses any other account. Until this is set, any signed-in
-   account can use the editor.
+3. **Lock it in Supabase (RLS).** In `SUPABASE_TRAVEL_SETUP.sql`, set `owner_email`
+   (two spots) to the email you sign in with and run the file. The RLS policies
+   then allow only your account to read drafts / create / edit / delete; visitors
+   only see published posts.
+4. **Lock the editor UI.** Add `TRAVEL_OWNER_EMAIL` (recommended) or
+   `TRAVEL_OWNER_ID` as GitHub Actions secrets. The deploy workflow writes
+   `travel/js/travel-owner-config.js` so the editor rejects other accounts.
 5. Sign in at `jacobgoodman.me/travel/editor.html` and start adding entries.
 
-> Why both? `travel-owner.js` is just a friendly gate in the browser. The SQL
-> policies are the real lock — even someone hitting the API directly can't write
-> unless their UID matches. Set both.
+> Why both? `travel-owner-config.js` is just a friendly gate in the browser. The
+> SQL policies are the real lock — even someone hitting the API directly can't
+> write unless their UID matches. Set both.
 
 ## Photos
 

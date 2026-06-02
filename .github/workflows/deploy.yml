@@ -27,6 +27,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SIGNUP_ACCESS_KEY: ${{ secrets.SIGNUP_ACCESS_KEY }}
+          TRAVEL_OWNER_EMAIL: ${{ secrets.TRAVEL_OWNER_EMAIL }}
+          TRAVEL_OWNER_ID: ${{ secrets.TRAVEL_OWNER_ID }}
         run: |
           node -e "
             const fs = require('fs');
@@ -42,6 +44,11 @@ jobs:
               : null;
             const travelOut = (travel ? 'const SUPABASE_CONFIG = ' + JSON.stringify(travel, null, 2) + ';' : 'const SUPABASE_CONFIG = null;');
             fs.writeFileSync('travel/js/travel-config.js', travelOut);
+            const ownerEmail = process.env.TRAVEL_OWNER_EMAIL || '';
+            const ownerId = process.env.TRAVEL_OWNER_ID || '';
+            const ownerOut = 'window.TRAVEL_OWNER_EMAIL = ' + JSON.stringify(ownerEmail.toLowerCase()) + ';\\n'
+              + 'window.TRAVEL_OWNER_ID = ' + JSON.stringify(ownerId) + ';\\n';
+            fs.writeFileSync('travel/js/travel-owner-config.js', ownerOut);
           "
 
       - name: Cache-bust scripts for faster propagation

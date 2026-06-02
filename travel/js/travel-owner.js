@@ -6,5 +6,6 @@
 //   - TRAVEL_OWNER_ID:    your Supabase user UID (Authentication -> Users)
 //
 // While both are empty, any signed-in account can use the editor (no lock).
-window.TRAVEL_OWNER_EMAIL = '';
-window.TRAVEL_OWNER_ID = '';
+// A deploy-generated `travel-owner-config.js` can override these at build time.
+window.TRAVEL_OWNER_EMAIL = (typeof window.TRAVEL_OWNER_EMAIL !== 'undefined') ? window.TRAVEL_OWNER_EMAIL : '';
+window.TRAVEL_OWNER_ID = (typeof window.TRAVEL_OWNER_ID !== 'undefined') ? window.TRAVEL_OWNER_ID : '';
