@@ -319,23 +319,23 @@ async function initPost() {
   const user = await TravelApp.getUser();
 
   container.innerHTML = `
-    <div class="relative h-72 sm:h-96 rounded-3xl overflow-hidden mb-8 shadow-lg">
+    <div class="relative h-56 sm:h-80 lg:h-96 rounded-2xl sm:rounded-3xl overflow-hidden mb-6 sm:mb-8 shadow-lg">
       ${coverHtml(p, '')}
       <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
-      <div class="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
+      <div class="absolute bottom-0 left-0 right-0 p-4 sm:p-8">
         <span class="${tm.color} text-white text-xs font-semibold px-2.5 py-1 rounded-full"><i class="fas ${tm.icon} mr-1"></i>${tm.label}</span>
-        <h1 class="text-3xl sm:text-4xl font-extrabold text-white mt-3 drop-shadow">${escapeHtml(p.title)}</h1>
-        ${p.location ? `<p class="text-white/90 mt-1"><i class="fas fa-location-dot mr-1"></i>${escapeHtml(p.location)}</p>` : ''}
+        <h1 class="text-2xl sm:text-4xl font-extrabold text-white mt-2 sm:mt-3 drop-shadow leading-tight">${escapeHtml(p.title)}</h1>
+        ${p.location ? `<p class="text-white/90 mt-1 text-sm sm:text-base"><i class="fas fa-location-dot mr-1"></i>${escapeHtml(p.location)}</p>` : ''}
       </div>
     </div>
 
     ${user ? `<div class="mb-6"><a href="editor.html?id=${encodeURIComponent(p.id)}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium"><i class="fas fa-pen"></i> Edit this entry</a></div>` : ''}
 
-    <div class="grid lg:grid-cols-3 gap-8">
+    <div class="grid lg:grid-cols-3 gap-6 lg:gap-8">
       <div class="lg:col-span-2 order-2 lg:order-1">
         ${p.summary ? `<p class="text-lg text-slate-700 dark:text-slate-200 font-medium mb-6">${escapeHtml(p.summary)}</p>` : ''}
         <div class="prose-custom text-slate-700 dark:text-slate-300">${renderBody(p.body)}</div>
-        ${gallery.length ? `<div class="grid sm:grid-cols-2 gap-4 mt-8">${gallery.map(ph => `
+        ${gallery.length ? `<div class="grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-4 mt-6 sm:mt-8">${gallery.map(ph => `
           <figure class="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
             <img src="${escapeHtml(ph.url)}" alt="${escapeHtml(ph.caption || p.title)}" class="w-full h-56 object-cover" loading="lazy">
             ${ph.caption ? `<figcaption class="text-xs text-slate-500 dark:text-slate-400 p-2">${escapeHtml(ph.caption)}</figcaption>` : ''}
