@@ -1132,7 +1132,7 @@ if (document.getElementById('mainContent')) {
           return `<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">${f.label}</label>
             <textarea id="field_${f.key}" rows="2" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm"></textarea></div>`;
         } else if (f.type === 'checkbox') {
-          const defaultChecked = (f.key === 'addToFinance' && type === 'meal') ? ' checked' : '';
+          const defaultChecked = (f.key === 'addToFinance' && type === 'purchase') ? ' checked' : '';
           return `<div class="flex items-center gap-2"><input type="checkbox" id="field_${f.key}" class="w-4 h-4 rounded"${defaultChecked}>
             <label class="text-sm font-medium text-slate-700 dark:text-slate-300">${f.label}</label></div>`;
         } else {
