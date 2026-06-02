@@ -594,10 +594,14 @@ if (document.getElementById('mainContent')) {
   // Navigation
   // ========================================
   const sidebar = document.getElementById('sidebar');
+  // On desktop, seed ml-64 so the toggle JS can operate on bare classes (lg:ml-64 stays as initial CSS).
+  if (window.innerWidth >= 1024) document.getElementById('mainContent')?.classList.add('ml-64');
   document.getElementById('sidebarToggle')?.addEventListener('click', () => {
+    if (window.innerWidth < 1024) return; // sidebar is a drawer on mobile; margins don't apply
     sidebar.classList.toggle('sidebar-collapsed');
-    document.getElementById('mainContent').classList.toggle('ml-64');
-    document.getElementById('mainContent').classList.toggle('ml-20');
+    const mc = document.getElementById('mainContent');
+    mc?.classList.toggle('ml-64');
+    mc?.classList.toggle('ml-20');
   });
   // Mobile sidebar with backdrop
   let sidebarBackdrop = document.getElementById('sidebarBackdrop');

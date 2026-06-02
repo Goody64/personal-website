@@ -1,0 +1,32 @@
+{
+  "name": "Jacob's Travels",
+  "short_name": "Travels",
+  "description": "Hikes and places — a travel log by Jacob Goodman.",
+  "start_url": "/travel/",
+  "scope": "/travel/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#3b82f6",
+  "categories": ["travel", "lifestyle"],
+  "icons": [
+    {
+      "src": "../assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "../assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "../assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

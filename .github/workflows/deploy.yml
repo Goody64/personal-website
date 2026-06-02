@@ -60,6 +60,8 @@ jobs:
             sed -i "s|js/lifeerp-extensions.js\"|js/lifeerp-extensions.js?v=${BUILD}\"|g" "$f"
           done
           sed -i "s|__BUILD__|${BUILD}|g" lifelog/sw.js
+          sed -i "s|__BUILD__|${BUILD}|g" travel/sw.js
+          sed -i "s|__BUILD__|${BUILD}|g" sw.js
           for f in travel/index.html travel/post.html travel/editor.html; do
             sed -i "s|js/travel.js\"|js/travel.js?v=${BUILD}\"|g" "$f"
           done
