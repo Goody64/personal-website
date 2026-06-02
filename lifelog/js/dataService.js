@@ -112,6 +112,14 @@ function setLocal(key, data) {
 const dataService = {
   _supabase: null,
   _useCloud: false,
+  _userId: null,
+
+  // Local cache key. When signed in, namespace by user id so different accounts
+  // (or anonymous use) never share a cache — prevents data bleeding across accounts.
+  _key(domain) {
+    const base = DATA_KEYS[domain] || STORAGE_PREFIX + domain;
+    return this._userId ? base + '__' + this._userId : base;
+  },
 
   init() {
     try {
@@ -137,6 +145,7 @@ const dataService = {
     if (!this._supabase) return;
     const { data: { session } } = await this._supabase.auth.getSession();
     this._useCloud = !!session;
+    this._userId = session?.user?.id || null;
     return session;
   },
 
@@ -157,7 +166,7 @@ const dataService = {
   async signIn(email, password) {
     if (!this._supabase) return { error: new Error('Supabase not configured') };
     const { data, error } = await this._supabase.auth.signInWithPassword({ email, password });
-    if (!error) this._useCloud = true;
+    if (!error) { this._useCloud = true; this._userId = data?.user?.id || null; }
     return { data, error };
   },
 
@@ -172,7 +181,7 @@ const dataService = {
         emailRedirectTo: redirectTo
       }
     });
-    if (!error) this._useCloud = true;
+    if (!error) { this._useCloud = true; this._userId = data?.user?.id || null; }
     return { data, error };
   },
 
@@ -193,11 +202,20 @@ const dataService = {
     if (this._supabase) await this._supabase.auth.signOut();
     this._useCloud = false;
     this.clearLocalCache();
+    this._userId = null;
   },
   clearLocalCache() {
-    DATA_DOMAINS.forEach(d => {
-      try { localStorage.removeItem(DATA_KEYS[d] || STORAGE_PREFIX + d); } catch {}
-    });
+    // Clear base keys AND every per-user namespaced key (lifeErp_<domain>__<uid>).
+    const prefixes = DATA_DOMAINS.map(d => DATA_KEYS[d] || STORAGE_PREFIX + d);
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (prefixes.some(p => k === p || k.startsWith(p + '__'))) localStorage.removeItem(k);
+      }
+    } catch {
+      prefixes.forEach(p => { try { localStorage.removeItem(p); } catch {} });
+    }
   },
 
   countDomainRecords(domain, data) {
@@ -239,36 +257,38 @@ const dataService = {
   },
 
   async get(domain) {
-    const key = DATA_KEYS[domain] || STORAGE_PREFIX + domain;
     try {
       if (!this._useCloud || !this._supabase) {
-        return getLocal(key) ?? getDefault(domain);
+        return getLocal(this._key(domain)) ?? getDefault(domain);
       }
       const { data: { user } } = await this._supabase.auth.getUser();
-      if (!user) return getLocal(key) ?? getDefault(domain);
+      if (!user) return getLocal(this._key(domain)) ?? getDefault(domain);
+      this._userId = user.id;
       const cloud = await this.getCloudOnly(domain);
-      const local = getLocal(key);
+      const local = getLocal(this._key(domain)); // this user's own cached copy
       if (cloud != null && domainHasContent(domain, local)) {
         const merged = mergeDomain(domain, local, cloud);
-        setLocal(key, merged);
+        setLocal(this._key(domain), merged);
         return merged;
       }
       const result = cloud ?? local ?? getDefault(domain);
-      if (result != null) setLocal(key, result);
+      if (result != null) setLocal(this._key(domain), result);
       return result;
     } catch (err) {
       console.warn('DataService get error:', err);
-      return getLocal(key) ?? getDefault(domain);
+      return getLocal(this._key(domain)) ?? getDefault(domain);
     }
   },
 
   async save(domain, data) {
-    const key = DATA_KEYS[domain] || STORAGE_PREFIX + domain;
-    setLocal(key, data); // always cache locally
+    let user = null;
+    if (this._useCloud && this._supabase) {
+      try { ({ data: { user } } = await this._supabase.auth.getUser()); } catch {}
+      if (user) this._userId = user.id;
+    }
+    setLocal(this._key(domain), data); // cache locally (namespaced per user when signed in)
     try {
-      if (!this._useCloud || !this._supabase) return;
-      const { data: { user } } = await this._supabase.auth.getUser();
-      if (!user) return;
+      if (!this._useCloud || !this._supabase || !user) return;
       await this._supabase
         .from('user_data')
         .upsert({
@@ -296,9 +316,10 @@ const dataService = {
     const { data: { user } } = await this._supabase.auth.getUser();
     if (!user) return { error: new Error('Not signed in') };
     this._useCloud = true;
+    this._userId = user.id;
     const summary = {};
     for (const domain of DATA_DOMAINS) {
-      const key = DATA_KEYS[domain];
+      const key = this._key(domain);
       const local = getLocal(key);
       const cloud = await this.getCloudOnly(domain);
       const merged = mergeDomain(domain, local, cloud);

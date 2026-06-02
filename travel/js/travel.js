@@ -379,8 +379,27 @@ async function initEditor() {
     return;
   }
 
+  const OWNER_ID = (typeof TRAVEL_OWNER_ID !== 'undefined' && TRAVEL_OWNER_ID) ? TRAVEL_OWNER_ID : '';
+  const OWNER_EMAIL = (typeof TRAVEL_OWNER_EMAIL !== 'undefined' && TRAVEL_OWNER_EMAIL) ? TRAVEL_OWNER_EMAIL.toLowerCase() : '';
+  const isOwner = (u) => {
+    if (!OWNER_ID && !OWNER_EMAIL) return true; // no lock configured
+    if (!u) return false;
+    if (OWNER_ID && u.id === OWNER_ID) return true;
+    if (OWNER_EMAIL && (u.email || '').toLowerCase() === OWNER_EMAIL) return true;
+    return false;
+  };
+
+  async function showNotAuthorized() {
+    await TravelApp.signOut();
+    loginView.classList.remove('hidden');
+    editorView.classList.add('hidden');
+    const err = document.getElementById('loginError');
+    if (err) { err.textContent = 'This account is not authorized to manage Travels.'; err.classList.remove('hidden'); }
+  }
+
   const user = await TravelApp.getUser();
-  if (user) showEditor();
+  if (user && isOwner(user)) showEditor();
+  else if (user) await showNotAuthorized();
   else showLogin();
 
   function showLogin() {
@@ -395,9 +414,10 @@ async function initEditor() {
       const password = document.getElementById('password').value;
       const btn = document.getElementById('loginBtn');
       btn.disabled = true; btn.textContent = 'Signing in…';
-      const { error } = await TravelApp.signIn(email, password);
+      const { data, error } = await TravelApp.signIn(email, password);
       btn.disabled = false; btn.textContent = 'Sign In';
       if (error) { err.textContent = error.message; err.classList.remove('hidden'); return; }
+      if (!isOwner(data?.user)) { await showNotAuthorized(); return; }
       showEditor();
     };
   }

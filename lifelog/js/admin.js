@@ -4209,7 +4209,7 @@ if (document.getElementById('mainContent')) {
             </div>
             <p class="text-xs text-center"><a href="#" id="cloudForgotPassword" class="text-blue-500 hover:underline">Forgot password?</a></p>
           </form>
-          <p class="text-xs text-slate-500 dark:text-slate-400">Local data is merged with cloud when you sign in (records are combined, not overwritten).</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Signing in loads your account's data from the cloud. This device's local data is kept separate — use "Merge this device with cloud" in Settings to combine them on purpose.</p>
         </div>
       `);
       const doAuth = async (isSignUp) => {
@@ -4241,16 +4241,9 @@ if (document.getElementById('mainContent')) {
           err.classList.remove('hidden');
           return;
         }
-        const hasLocal = (window.DATA_DOMAINS || []).some(d => {
-          const raw = localStorage.getItem(STORAGE_KEYS[d] || 'lifeErp_' + d);
-          if (!raw) return false;
-          try {
-            return window.dataService?.domainHasContent
-              ? window.dataService.domainHasContent(d, JSON.parse(raw))
-              : JSON.parse(raw)?.length > 0;
-          } catch { return false; }
-        });
-        if (hasLocal) await window.dataService.mergeLocalWithCloud();
+        // Do NOT auto-merge this device's data into the account — that bled data
+        // across accounts. Cloud is the source of truth on sign-in. To intentionally
+        // push this device's local data up, use "Merge this device with cloud" in Settings.
         closeModal(); window.location.reload();
       };
       document.getElementById('cloudAuthForm')?.addEventListener('submit', async (e) => { e.preventDefault(); const email = document.getElementById('cloudEmail').value; const pw = document.getElementById('cloudPassword').value; if (!email || !pw) { document.getElementById('cloudAuthError').textContent = 'Email and password required'; document.getElementById('cloudAuthError').classList.remove('hidden'); return; } await doAuth(false); });

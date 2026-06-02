@@ -18,17 +18,19 @@ search, and filter; only you (signed in) can create/edit entries.
 2. In Supabase → **SQL Editor**, run `SUPABASE_TRAVEL_SETUP.sql`. This creates the
    `travel_posts` table (public read / signed-in write) and a public `travel`
    storage bucket for photos.
-3. Sign in at `jacobgoodman.me/travel/editor.html` with your Life ERP account and
-   start adding entries. (Account sign-up is gated by `SIGNUP_ACCESS_KEY`, so only
-   you can have an account.)
+3. **Lock it to you.** In `SUPABASE_TRAVEL_SETUP.sql`, set `owner_email` (two spots)
+   to the email you sign in with and run the file. The RLS policies then allow only
+   your account to read drafts / create / edit / delete; visitors only see published
+   posts.
+4. **Tell the editor who you are.** In `travel/js/travel-owner.js`, set
+   `window.TRAVEL_OWNER_EMAIL` to the same email (or `TRAVEL_OWNER_ID` to your UID).
+   The editor then refuses any other account. Until this is set, any signed-in
+   account can use the editor.
+5. Sign in at `jacobgoodman.me/travel/editor.html` and start adding entries.
 
-## Lock writes to only your account (optional, stricter)
-
-The default policy lets any *authenticated* user write — which is effectively just
-you, since nobody else can sign up. To hard-lock it to your user ID, find your UUID
-in Supabase → **Authentication → Users**, then in the SQL editor replace
-`auth.role() = 'authenticated'` with `auth.uid() = 'YOUR-USER-UUID'` in each of the
-`travel_posts` write policies (insert/update/delete).
+> Why both? `travel-owner.js` is just a friendly gate in the browser. The SQL
+> policies are the real lock — even someone hitting the API directly can't write
+> unless their UID matches. Set both.
 
 ## Photos
 
