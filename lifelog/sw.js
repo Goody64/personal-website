@@ -39,7 +39,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
 
   // App JS/HTML: network-first so updates propagate
-  if (url.pathname.includes('/admin/js/') || url.pathname.endsWith('.html')) {
+  if (url.pathname.includes('/lifelog/js/') || url.pathname.endsWith('.html')) {
     e.respondWith(
       fetch(e.request).then((res) => {
         if (res.ok) {

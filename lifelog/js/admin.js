@@ -4075,7 +4075,7 @@ if (document.getElementById('mainContent')) {
     if (!configured) {
       el.innerHTML = `
         <p class="text-amber-600 dark:text-amber-400"><i class="fas fa-exclamation-triangle mr-2"></i>Supabase not configured</p>
-        <p class="text-slate-500 dark:text-slate-400 text-xs mt-1">Add SUPABASE_URL and SUPABASE_ANON_KEY to GitHub Secrets. See admin/SUPABASE_SETUP.md</p>
+        <p class="text-slate-500 dark:text-slate-400 text-xs mt-1">Add SUPABASE_URL and SUPABASE_ANON_KEY to GitHub Secrets. See lifelog/SUPABASE_SETUP.md</p>
         <p class="text-slate-500 dark:text-slate-400 mt-2"><strong>Storage:</strong> Local only (browser)</p>
       `;
       return;

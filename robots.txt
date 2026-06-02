@@ -1,5 +1,5 @@
 User-agent: *
-Disallow: /admin/
+Disallow: /lifelog/
 
 # Block common SEO/scraper bots from the whole site (polite crawlers only).
 User-agent: AhrefsBot
