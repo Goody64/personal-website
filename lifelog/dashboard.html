@@ -65,6 +65,29 @@
     @media (max-width: 1023px) {
       #mainContent { margin-left: 0 !important; }
     }
+
+    /* ===== MOBILE: prevent horizontal scroll, tighten layout ===== */
+    html, body { overflow-x: hidden; max-width: 100vw; }
+    #mainApp, #mainContent { overflow-x: hidden; min-width: 0; }
+    .content-section { min-width: 0; }
+
+    @media (max-width: 767px) {
+      /* Tighter padding in main content area */
+      #contentWrapper { padding: 0.75rem !important; }
+      /* Tighter header padding */
+      #mainContent > header { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+      /* Finance filters: horizontally scrollable strip, don't wrap into giant block */
+      #finance .finance-controls-row { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 0.5rem; }
+      /* Finance tab row: allow horizontal scroll instead of wrapping buttons off-screen */
+      #finance .finance-tab-row { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      /* Settings row: let inputs shrink */
+      #settings .flex.items-center.justify-between { flex-wrap: wrap; gap: 0.5rem; }
+      #settings input[type="text"], #settings input[type="email"] { width: auto; min-width: 0; flex: 1 1 auto; }
+      /* Calendar grid stays in its container */
+      #calendarGrid { font-size: 0.7rem; }
+      /* Charts: don't blow out container */
+      canvas { max-width: 100% !important; }
+    }
     /* Finance tab buttons */
     .finance-tab-btn { cursor: pointer; }
     .finance-tab-btn:not(.bg-blue-600):hover { background: #e2e8f0 !important; }
@@ -255,7 +278,7 @@
 
 
       <!-- Content Sections -->
-      <div class="p-6">
+      <div class="p-6" id="contentWrapper">
         <!-- Dashboard Section -->
         <section id="dashboard" class="content-section">
           <div class="mb-6">
@@ -646,7 +669,7 @@
 
         <!-- Finance Section -->
         <section id="finance" class="content-section hidden">
-          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div class="finance-controls-row flex flex-wrap items-center justify-between gap-4 mb-6">
             <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Finance</h1>
             <div class="flex flex-wrap items-center gap-3">
             <div class="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
@@ -703,7 +726,7 @@
           </div>
           
           <!-- Finance Sub-nav -->
-          <div class="flex gap-2 mb-6">
+          <div class="finance-tab-row flex gap-2 mb-6">
             <button id="financeTabTransactions" class="finance-tab-btn px-4 py-2 rounded-xl font-medium transition-all bg-blue-600 text-white" data-finance-tab="transactions">
               <i class="fas fa-receipt mr-2"></i>Transactions
             </button>
